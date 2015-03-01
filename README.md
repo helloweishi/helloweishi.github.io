@@ -1,2 +1,2 @@
-helloweishi.github.io
+This site is used for testing
 =====================
