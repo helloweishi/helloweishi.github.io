@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Visit youtube inside firewall without VPN &#8211; Wei</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="This article analysis how firewall system block youtube accessing, and how we can break through.">
+    <meta name="author" content="Wei">
+    <meta name="keywords" content="network, firewall">
+    <link rel="canonical" href="https://github.com/helloweishi//network/firewall/2015/04/03/access-youtube-without-vpn/">
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/css/pixyll.css" type="text/css">
+
+    <!-- Fonts -->
+    <link href='//fonts.googleapis.com/css?family=Merriweather:900,900italic,300,300italic' rel='stylesheet' type='text/css'>
+    <link href='//fonts.googleapis.com/css?family=Lato:900,300' rel='stylesheet' type='text/css'>
+    
+      <link href="//maxcdn.bootstrapcdn.com/font-awesome/4.2.0/css/font-awesome.min.css" rel="stylesheet">
+    
+
+
+    <!-- Open Graph -->
+    <!-- From: https://github.com/mmistakes/hpstr-jekyll-theme/blob/master/_includes/head.html -->
+    <meta property="og:locale" content="en_US">
+    <meta property="og:type" content="article">
+    <meta property="og:title" content="Visit youtube inside firewall without VPN">
+    <meta property="og:description" content="Welcome to Wei's blog.">
+    <meta property="og:url" content="https://github.com/helloweishi//network/firewall/2015/04/03/access-youtube-without-vpn/">
+    <meta property="og:site_name" content="Wei">
+
+    <!-- Icons -->
+    <link rel="apple-touch-icon" sizes="57x57" href="apple-touch-icon-57x57.png">
+    <link rel="apple-touch-icon" sizes="114x114" href="apple-touch-icon-114x114.png">
+    <link rel="apple-touch-icon" sizes="72x72" href="apple-touch-icon-72x72.png">
+    <link rel="apple-touch-icon" sizes="144x144" href="apple-touch-icon-144x144.png">
+    <link rel="apple-touch-icon" sizes="60x60" href="apple-touch-icon-60x60.png">
+    <link rel="apple-touch-icon" sizes="120x120" href="apple-touch-icon-120x120.png">
+    <link rel="apple-touch-icon" sizes="76x76" href="apple-touch-icon-76x76.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="apple-touch-icon-152x152.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon-180x180.png">
+    <link rel="icon" type="image/png" href="favicon-192x192.png" sizes="192x192">
+    <link rel="icon" type="image/png" href="favicon-160x160.png" sizes="160x160">
+    <link rel="icon" type="image/png" href="favicon-96x96.png" sizes="96x96">
+    <link rel="icon" type="image/png" href="favicon-16x16.png" sizes="16x16">
+    <link rel="icon" type="image/png" href="favicon-32x32.png" sizes="32x32">
+</head>
+
+<body class="">
+  <div class="site-wrap">
+    <header class="site-header px2 px-responsive">
+  <div class="mt2 wrap">
+    <div class="measure">
+      <a href="https://github.com/helloweishi/" class="site-title">Wei</a>
+      <nav class="site-nav right">
+        <a href="/about/">About</a>
+<a href="/contact/">Contact</a>
+
+      </nav>
+      <div class="clearfix"></div>
+      
+        <div class="social-icons">
+  <div class="left">
+    
+      <a class="fa fa-github" href="https://github.com/helloweishi"></a>
+    
+    
+    <a class="fa fa-rss" href="/feed.xml"></a>
+    
+      <a class="fa fa-twitter" href="https://twitter.com/weishigoname"></a>
+    
+    
+      <a class="fa fa-google-plus" href="https://plus.google.com/weishigogo/posts"></a>
+    
+    
+      <a class="fa fa-envelope" href="mailto:weishigoname@hotmail.com"></a>
+    
+    
+  </div>
+  <div class="right">
+    
+    
+    
+  </div>
+</div>
+<div class="clearfix"></div>
+
+      
+    </div>
+  </div>
+</header>
+
+
+    <div class="post p2 p-responsive wrap" role="main">
+      <div class="measure">
+        
+
+
+<div class="post-header mb2">
+  <h1>Visit youtube inside firewall without VPN</h1>
+  <span class="post-meta">Apr 3, 2015</span><br>
+  
+  <span class="post-meta small">7 minute read</span>
+</div>
+
+<article class="post-content">
+  <p>This article I like to introduce some technical details about how firewall system block Youtube service, and based on the analysis of filter mechanism, I will try to tell you how to break it.</p>
+
+<p><strong>Here we go.</strong></p>
+
+<p>In last article, I tried to analysis how firewall system block Google, which is </p>
+
+<ol>
+<li><p>IP address filtering</p></li>
+<li><p>keywords filtering</p></li>
+</ol>
+
+<p>these two mechanism also work here, but there are a little difference in keywords filtering, when you visit Google&rsquo;s search service, firewall system check GET/POST packets for your search keywords, it will trigger firewall system send RST packet to your device if some sensitive information found, for Youtube, firewall system still check GET/POST packets, but different header field in HTTP header, which is HOST, this header field is required in every HTTP request packets, its value is target&rsquo;s domain name, firewall system can known which domain name you want to visit by checking this field-value, here it is youtube.com, so it will trigger firewall system send RST to your device.</p>
+
+<p><strong>Filtering Summarize</strong></p>
+
+<p>The youtube service block mechanism: the first step is add youtube severs&rsquo; IP addresses into black list, the second step is check HOST header field in HTTP header, which HTTP packet type is GET/POST, if it is youtube.com, fire RST.</p>
+
+<p>there is one question here, if you find a valid youtube server&rsquo;s IP address, which is not in black list, and you input that IP address in browser, it doesn&rsquo;t return youtube&rsquo;s website to you, but Google&rsquo;s search website. You know, Google has many services, youtube is one of them, that means Google&rsquo;s IP pool is youtube&rsquo;s IP pool, too, and it has Gmail, maps, docs, and etc, almost all of these services you can visit from the same server, actually, I don&rsquo;t know how Google works, and it is not very possible that Google have all the services in the same server, I guess it must have some internal mechanism between Google servers, they can schedule other resources from other servers when they don&rsquo;t have, and return to user directly, and don&rsquo;t need user to visit other servers, this can simplify the procedure. In last article, I said when you found a valid Google server&rsquo;s IP address, and just input that address in browser, Google will return you a search website, which is its default service, how we can visit Google other services from the same server ? from my investigation, this service discrimination lie in header field HOST of HTTP header, that is why firewall system use it to block youtube service, when you just input Google server&rsquo;s IP address in browser, HOST is the IP address you input, Google don&rsquo;t know which service you want to access, so it return its default service&mdash;-search engine, if you visit its youtube service, HOST field-value is youtube.com, if Gmail, HOST field-value is gmail.google.com, if maps, HOST field-value is maps.google.com, and etc. </p>
+
+<p><img src="/images/hostHeaderField.png" alt="Host Header field">
+<center><small>Figure 1: Host Header Field snapshot</small></center>  </p>
+
+<p>you may ask how to make HOST field-value be the target service domain in HTTP header, or how to relate the target service domain with the IP address you specified? In order to answer this question, let&rsquo;s talk about what exactly happens when you input a URL in browser.</p>
+
+<p>The first thing operator system want to know is where you want to visit, it decode what you input, if it is a IP address, operator system will establish a connection with server with that IP address, and get what you request; if it is domain name, operator system need to translate domain name into IP address, and then, establish a connection, get what you request.
+how operator system translate domain name into IP address is very import part of this article, so I talk about it in detail, each OS, like windows, Linux, may have a little difference, but the main idea is the same, let&rsquo;s first talk about Linux, Ubuntu, as a example, when it receive a domain name, where it first send DNS query to depends on the configure file /etc/resolv.conf, by default, the target DNS server is 127.0.0.1, that means it send DNS query to itself, Ubuntu handle DNS in proxy way, one dnsmasq process listens on port 53, which port is reserved for DNS, after dnsmasq receives DNS query, what it first do is check configuration file /etc/hosts, if there is a domain name in this file match domain in DNS query, it will return IP address configured for that domain directly, and no DNS query will send out, if no match, dnsmsq will send DNS query to DNS server configured on default WAN interface, when DNS response receives, it will return to application which is waiting, here it is browser, if no DNS response receives, dnsmasq will try several times till time out.</p>
+
+<p>Windows has a similar mechanism and similar hosts configuration file, it is C:\windows\system32\driver\etc\hosts. You know, for all the forbidden sites in firewall system, the most important thing is <big>avoid send any DNS query out, any IP addresses return from DNS servers inside firewall system are in black list</big>.</p>
+
+<p><strong>Time To Break Restriction</strong></p>
+
+<p>Break restriction 1:
+For IP address blocking, in previous article, I already said how to find a valid IP address, skip it here.</p>
+
+<p>Break restriction 2:
+after find a valid IP address, we can&rsquo;t input it in browser directly, because Google won&rsquo;t know which service you want to visit, need to do a little trick, configure IP address of domain youtube.com into hosts file,
+like appending below to host file in your OS:</p>
+
+<blockquote>
+<p>(replace here with ip you find)            youtube.com ytimg.com google.com google.com.hk googlevideo.com</p>
+</blockquote>
+
+<p>it works at windows OS, but Linux, that is because there is a little different when they search domain in hosts file, windows OS search domain&rsquo;s suffix, if you configure google.com in hosts file, the target service domains all with suffix google.com, like maps.google.com, docs.google.com, can match in host file, and return IP address succeed, but Linux, it is strict match, that means google.com only match google.com, if the target service domain is maps.google.com, Linux will failed to find a entry in hosts file, that is weird, but it is not so difficult problem, change the match rule in dnsmasq, just several lines of code can fix it, and I will come up later when it is done. Without match rule change in dnsmasq, you still can open youtube site, but when you watch video, it will display error, that is because video&rsquo;s service domain name is not a fixed one, but with some weird prefix, like r2&mdash;xxxx.googlevideo.com, r4&mdash;xxxx.googlevideo.com, so match rule in dnsmasq has to be changed before watching video.</p>
+
+<p><img src="/images/youtube1.png" alt="youtube snapshot 1">
+<center><small>Figure 2: youtube site snapshot</small></center><br>
+<img src="/images/youtube2.png" alt="youtube snapshot 2">
+<center><small>Figure 3: youtube site snapshot 2</small></center>  </p>
+
+<p>And about keywords filter system in firewall, I think we have a way to ignore the RST packet firewall sending, in previous article, I talked about TTL, the TTL value your device receives from firewall system is much different with it from original server, for Linux system, we can fix it in kernel, when connection establishes, TTL value can record in socket structure, and if kernel receives RST, it can compare the TTL in RST with it in socket structure, which can tell whether this RST is send from original server, and I will come up later when it is done. </p>
+
+<p><strong>Conclusion</strong></p>
+
+<p>The usual methods firewall system used to block site accessing are IP filtering and keywords filtering. when we want to break through, the first thing is find a valid IP address, and second is avoid DNS query sending out, and use secure connection if server support, this technical I tested in Windows, Linux, I think IOS, too, just need to know how to configure it.</p>
+
+<p>Fix me if you find some wrong, and drop me email if you have questions.</p>
+
+</article>
+
+
+  <div class="share-page">
+  Share this post!
+
+  <div class="share-links">
+    
+
+    
+      <a class="fa fa-twitter" href="https://twitter.com/intent/tweet?text=Visit youtube inside firewall without VPN&url=https://github.com/helloweishi//network/firewall/2015/04/03/access-youtube-without-vpn/" rel="nofollow" target="_blank" title="Share on Twitter"></a>
+    
+
+    
+      <a class="fa fa-google-plus" href="https://plus.google.com/share?url=https://github.com/helloweishi//network/firewall/2015/04/03/access-youtube-without-vpn/" rel="nofollow" target="_blank" title="Share on Google+"></a>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+  </div>
+</div>
+
+
+
+
+
+
+  <div id="disqus_thread"></div>
+  <script type="text/javascript">
+    var disqus_shortname  = 'weishigoname';
+    var disqus_identifier = '/network/firewall/2015/04/03/access-youtube-without-vpn';
+
+    (function() {
+      var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+      dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+      (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+    })();
+  </script>
+  <noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+
+
+
+
+      </div>
+    </div>
+  </div>
+
+  <footer class="footer">
+  <div class="p2 wrap">
+    <div class="measure mt1 center">
+      <small>
+        <br>
+ 
+      </small>
+    </div>
+  </div>
+</footer>
+
+
+
+</body>
+</html>
