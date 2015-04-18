@@ -55,6 +55,9 @@ For keyword filter system, it can work, that is because the connection between y
 
 Access Google via HTTPS, all the context between your device and Google server are encrypted, there is no way to decrypted them in the middle, even firewall system can get, but it has no way to know what it is.
 
+![google](/images/google.png)  
+<center><small>Figure 2:google search snapshot</small></center>
+
 Ok, time to stop, if any questions, you can drop me a email, next article I will talk about how to visit youtube inside firewall system.  
 Fix me, if you find some errors in my post.
 

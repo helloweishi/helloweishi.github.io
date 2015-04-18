@@ -121,6 +121,9 @@ normally, your device will get some valid IP addresses, and then, your device wi
 
 &lt;p&gt;Access Google via HTTPS, all the context between your device and Google server are encrypted, there is no way to decrypted them in the middle, even firewall system can get, but it has no way to know what it is.&lt;/p&gt;
 
+&lt;p&gt;&lt;img src=&quot;/images/google.png&quot; alt=&quot;google&quot;&gt;&lt;br&gt;
+&lt;center&gt;&lt;small&gt;Figure 2:google search snapshot&lt;/small&gt;&lt;/center&gt;&lt;/p&gt;
+
 &lt;p&gt;Ok, time to stop, if any questions, you can drop me a email, next article I will talk about how to visit youtube inside firewall system.&lt;br&gt;
 Fix me, if you find some errors in my post.&lt;/p&gt;
 </description>
