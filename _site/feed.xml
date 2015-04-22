@@ -7,6 +7,32 @@
     <atom:link href="https://github.com/helloweishi//feed.xml" rel="self" type="application/rss+xml" />
     
       <item>
+        <title>Visit twitter inside firewall without VPN</title>
+        <description>&lt;p&gt;Like youtube and google, twitter is blocked in the same way, if you want to know how firewall filter system works, you can read my previous articles, this article I introduce some ways to walk around firewall, and visit twitter freely.&lt;br&gt;
+The main idea is avoid any DNS packets send out for all blocked sites, when visit twitter, we should find out the IP addresses of blocked sites servers, which reachable, and append them into host file.  &lt;/p&gt;
+
+&lt;p&gt;how can we know all the blocked sites ?&lt;br&gt;
+we can find them out following steps below:&lt;br&gt;
+1)  open capture tool, like warshark, or sniffer, and start to capture packets&lt;br&gt;
+2)  input twitter.com into your browser&lt;br&gt;
+3)  when browser notify connection time-out or connection reset, stop capturing&lt;br&gt;
+4)  packet analyze, we need to check all the DNS reply, and the connection establish between our device and site&amp;rsquo;s server IP address in DNS reply, if that server never answer our device&amp;rsquo;s request, or connection reset by server, which TTL value is obvious different with other packets in the same connection, they will be the sites blocked by firewall.    &lt;/p&gt;
+
+&lt;p&gt;After knowing all the blocked sites, the next step we need to do is find out valid IP addresses for all blocked sites, we can do it via ping these blocked site outside firewall, like online ping website in other countries, or iterate these sites&amp;rsquo;s IP pool.  &lt;/p&gt;
+
+&lt;p&gt;For twitter, there are at least two sites, twitter.com and domain with suffix twimg.com, which server store images, like pbs.twimg.com, we need to find out these two sites&amp;rsquo;s IP addresses, and it seems not like google, all services can visit via a single server, in twitter, text and image store at different servers, so we should find them all, or web page won&amp;rsquo;t display normally.    &lt;/p&gt;
+
+&lt;p&gt;The last step is append IP address and domain name into host file, flush DNS cache, and enjoy.  &lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/twitter.png&quot; alt=&quot;twitter page&quot;&gt;
+&lt;center&gt;&lt;small&gt;Figure 1: twitter snapshot&lt;/small&gt;&lt;/center&gt;  &lt;/p&gt;
+</description>
+        <pubDate>Wed, 22 Apr 2015 19:45:00 +0800</pubDate>
+        <link>https://github.com/helloweishi//network/firewall/2015/04/22/visit-twitter-without-vpn/</link>
+        <guid isPermaLink="true">https://github.com/helloweishi//network/firewall/2015/04/22/visit-twitter-without-vpn/</guid>
+      </item>
+    
+      <item>
         <title>Visit youtube inside firewall without VPN</title>
         <description>&lt;p&gt;This article I like to introduce some technical details about how firewall system block Youtube service, and based on the analysis of filter mechanism, I will try to tell you how to break it.&lt;/p&gt;
 
