@@ -109,122 +109,119 @@
 
 <p>In order to explain how we can fix it up, I introduce some data structure first:  </p>
 
-<blockquote>
-<p>struct proto tcp_prot = {<br>
-       .name                   = &ldquo;TCP&rdquo;,<br>
-       .owner                  = THIS<em>MODULE,<br>
-       .close                  = tcp_close,<br>
-       .connect                = tcp_v4</em>connect,<br>
-       .disconnect             = tcp_disconnect,<br>
-       .accept                 = inet_csk_accept,<br>
-       .ioctl                  = tcp_ioctl,<br>
-       .init                   = tcp_v4_init_sock,<br>
-       .destroy                = tcp_v4_destroy_sock,<br>
-       .shutdown               = tcp_shutdown,<br>
-       .setsockopt             = tcp_setsockopt,<br>
-       .getsockopt             = tcp_getsockopt,<br>
-       .recvmsg                = tcp_recvmsg,<br>
-       .sendmsg                = tcp_sendmsg,<br>
-       .sendpage               = tcp_sendpage,<br>
-       .backlog_rcv            = tcp_v4_do_rcv,<br>
-       .release_cb             = tcp_release_cb,<br>
-       .hash                   = inet_hash,<br>
-       .unhash                 = inet_unhash,<br>
-       .get_port               = inet_csk_get_port,<br>
-       .enter_memory_pressure  = tcp_enter_memory_pressure,<br>
-       .stream_memory_free     = tcp_stream_memory_free,<br>
-       .sockets_allocated      = &amp;tcp_sockets_allocated,<br>
-       .orphan_count           = &amp;tcp_orphan_count,<br>
-       .memory_allocated       = &amp;tcp_memory_allocated,<br>
-       .memory_pressure        = &amp;tcp_memory_pressure,<br>
-       .sysctl_mem             = sysctl_tcp_mem,<br>
-       .sysctl_wmem            = sysctl_tcp_wmem,<br>
-       .sysctl_rmem            = sysctl_tcp_rmem,<br>
-       .max_header             = MAX_TCP_HEADER,<br>
-       .obj_size               = sizeof(struct tcp_sock),<br>
-       .slab_flags             = SLAB_DESTROY_BY_RCU,<br>
-       .twsk_prot              = &amp;tcp_timewait_sock_ops,<br>
-       .rsk_prot               = &amp;tcp_request_sock_ops,<br>
-       .hashinfo             = &amp;tcp_hashinfo,<br>
-       .no_autobind            = true,<br>
-#ifdef CONFIG_COMPAT<br>
-       .compat_setsockopt      = compat_tcp_setsockopt,<br>
-       .compat_getsockopt      = compat_tcp_getsockopt,<br>
-#endif<br>
-#ifdef CONFIG_MEMCG_KMEM<br>
-       .init_cgroup            = tcp_init_cgroup,<br>
-       .destroy_cgroup         = tcp_destroy_cgroup,<br>
-       .proto_cgroup           = tcp_proto_cgroup,<br>
-#endif<br>
-};  </p>
-</blockquote>
+<pre><code>
+struct proto tcp_prot = {  
+        .name                   = "TCP",  
+        .owner                  = THIS_MODULE,  
+        .close                  = tcp_close,  
+        .connect                = tcp_v4_connect,  
+        .disconnect             = tcp_disconnect,  
+        .accept                 = inet_csk_accept,  
+        .ioctl                  = tcp_ioctl,  
+        .init                   = tcp_v4_init_sock,  
+        .destroy                = tcp_v4_destroy_sock,  
+        .shutdown               = tcp_shutdown,  
+        .setsockopt             = tcp_setsockopt,  
+        .getsockopt             = tcp_getsockopt,  
+        .recvmsg                = tcp_recvmsg,  
+        .sendmsg                = tcp_sendmsg,  
+        .sendpage               = tcp_sendpage,  
+        .backlog_rcv            = tcp_v4_do_rcv,  
+        .release_cb             = tcp_release_cb,  
+        .hash                   = inet_hash,  
+        .unhash                 = inet_unhash,  
+        .get_port               = inet_csk_get_port,  
+        .enter_memory_pressure  = tcp_enter_memory_pressure,  
+        .stream_memory_free     = tcp_stream_memory_free,  
+        .sockets_allocated      = &tcp_sockets_allocated,  
+        .orphan_count           = &tcp_orphan_count,  
+        .memory_allocated       = &tcp_memory_allocated,  
+        .memory_pressure        = &tcp_memory_pressure,  
+        .sysctl_mem             = sysctl_tcp_mem,  
+        .sysctl_wmem            = sysctl_tcp_wmem,  
+        .sysctl_rmem            = sysctl_tcp_rmem,  
+        .max_header             = MAX_TCP_HEADER,  
+        .obj_size               = sizeof(struct tcp_sock),  
+        .slab_flags             = SLAB_DESTROY_BY_RCU,  
+        .twsk_prot              = &tcp_timewait_sock_ops,  
+        .rsk_prot               = &tcp_request_sock_ops,  
+        .hashinfo             = &tcp_hashinfo,  
+        .no_autobind            = true,  
+#ifdef CONFIG_COMPAT  
+        .compat_setsockopt      = compat_tcp_setsockopt,  
+        .compat_getsockopt      = compat_tcp_getsockopt,  
+#endif  
+#ifdef CONFIG_MEMCG_KMEM  
+        .init_cgroup            = tcp_init_cgroup,  
+        .destroy_cgroup         = tcp_destroy_cgroup,  
+        .proto_cgroup           = tcp_proto_cgroup,  
+#endif  
+};  
+</code></pre>
 
 <p>Struct proto tcp_prot is the central structure of TCP protocol in Linux kernel, which define in file net/ipv4/tcp_ipv4.c, all the connection control and packets in/out are hanled by HOOK functions in this structure, like HOOK function backlog_rcv receive packets from layer 3, and deliver them to upper layer.</p>
 
-<blockquote>
-<p>struct inet<em>sock {<br>
-  /* sk and pinet6 has to be the first two members of inet</em>sock <em>/<br>
-  struct sock     sk;<br>
-#if IS<em>ENABLED(CONFIG_IPV6)<br>
-  struct ipv6</em>pinfo   *pinet6;<br>
-#endif<br>
-  /</em> Socket demultiplex comparisons on incoming packets. */<br>
-#define inet<em>daddr        sk.__sk</em>common.skc_daddr<br>
-#define inet<em>rcv</em>saddr        sk.__sk_common.skc_rcv_saddr<br>
-#define inet<em>dport        sk.__sk_common.skc_dport<br>
-#define inet</em>num      sk.__sk_common.skc_num  </p>
-
-<p>__be32            inet_saddr;<br>
-  __s16         uc_ttl;<br>
-  __u16         cmsg_flags;<br>
-  __be16            inet_sport;<br>
-  __u16         inet_id;  </p>
-
-<p>struct ip<em>options</em>rcu __rcu   *inet_opt;<br>
-  int         rx<em>dst_ifindex;<br>
-  __u8          tos;<br>
-  __u8          min_ttl;<br>
-  __u8          mc_ttl;<br>
-  __u8          pmtudisc;<br>
-  __u8          recverr:1,<br>
-              is</em>icsk:1,<br>
-              freebind:1,<br>
-              hdrincl:1,<br>
-              mc_loop:1,<br>
-              transparent:1,<br>
-              mc_all:1,<br>
-              nodefrag:1;<br>
-  __u8          rcv_tos;<br>
-  __u8          convert_csum;<br>
-  int         uc_index;<br>
-  int         mc_index;<br>
-  __be32            mc_addr;<br>
-  struct ip_mc_socklist __rcu *mc_list;<br>
-  struct inet_cork_full cork;<br>
-};    </p>
-</blockquote>
+<pre><code>
+struct inet_sock {  
+    /* sk and pinet6 has to be the first two members of inet_sock */  
+    struct sock     sk;  
+#if IS_ENABLED(CONFIG_IPV6)  
+    struct ipv6_pinfo   *pinet6;  
+#endif  
+    /* Socket demultiplex comparisons on incoming packets. */  
+#define inet_daddr      sk.__sk_common.skc_daddr  
+#define inet_rcv_saddr      sk.__sk_common.skc_rcv_saddr  
+#define inet_dport      sk.__sk_common.skc_dport  
+#define inet_num        sk.__sk_common.skc_num  
+   
+    __be32          inet_saddr;  
+    __s16           uc_ttl;  
+    __u16           cmsg_flags;  
+    __be16          inet_sport;  
+    __u16           inet_id;  
+  
+    struct ip_options_rcu __rcu *inet_opt;  
+    int         rx_dst_ifindex;  
+    __u8            tos;  
+    __u8            min_ttl;  
+    __u8            mc_ttl;  
+    __u8            pmtudisc;  
+    __u8            recverr:1,  
+                is_icsk:1,  
+                freebind:1,  
+                hdrincl:1,  
+                mc_loop:1,  
+                transparent:1,  
+                mc_all:1,  
+                nodefrag:1;  
+    __u8            rcv_tos;  
+    __u8            convert_csum;  
+    int         uc_index;  
+    int         mc_index;  
+    __be32          mc_addr;  
+    struct ip_mc_socklist __rcu *mc_list;  
+    struct inet_cork_full   cork;  
+};    
+</code></pre>
 
 <p>Struct inet_sock maintains network elements of connection established, like IP addresses and ports of foreign and local, TOS value, outgoing device index, etc, and it is embedded in struct sock sk, which is the central structure of socket, and which controls and maintains all the states of connection, we can use inet_sk(sk) call to get struct inet_sock information from struct sock. There are two elements related to TTL in struct inet_sock I like to mention here, uc_ttl is TTL for local machine, TTL in IP header will take its value when send out, if its value is not -1, which is the value when socket init, but we can set its value via ioctl; mc_ttl is TTL for multicasting, for unicast, there is no use, so we can use it to record TTL value received from peer, which can help us to fixup RST attack, when socket init, mc_ttl is set to 1.</p>
+<div class="highlight"><pre><code class="language-text" data-lang="text">#code segement of function inet_create, when socket init.  
+    inet-&gt;inet_id = 0;  
 
-<blockquote>
-<p>code segement of function inet_create, when socket init.<br>
-  inet-&gt;inet_id = 0;  </p>
+    sock_init_data(sock, sk);  
 
-<p>sock_init_data(sock, sk);  </p>
+    sk-&gt;sk_destruct    = inet_sock_destruct;  
+    sk-&gt;sk_protocol    = protocol;  
+    sk-&gt;sk_backlog_rcv = sk-&gt;sk_prot-&gt;backlog_rcv;  
 
-<p>sk-&gt;sk_destruct       = inet<em>sock</em>destruct;<br>
-  sk-&gt;sk_protocol       = protocol;<br>
-  sk-&gt;sk<em>backlog_rcv = sk-&gt;sk</em>prot-&gt;backlog_rcv;  </p>
-
-<p>inet-&gt;uc_ttl   = -1;<br>
-  inet-&gt;mc_loop  = 1;<br>
-  inet-&gt;mc_ttl   = 1;<br>
-  inet-&gt;mc_all   = 1;<br>
-  inet-&gt;mc_index = 0;<br>
-  inet-&gt;mc_list  = NULL;<br>
-  inet-&gt;rcv_tos  = 0;   </p>
-</blockquote>
-
+    inet-&gt;uc_ttl    = -1;  
+    inet-&gt;mc_loop   = 1;  
+    inet-&gt;mc_ttl    = 1;  
+    inet-&gt;mc_all    = 1;  
+    inet-&gt;mc_index  = 0;  
+    inet-&gt;mc_list   = NULL;  
+    inet-&gt;rcv_tos   = 0;   
+</code></pre></div>
 <p>Ok, let&rsquo;s start to dig code to find out how TCP socket works in Linux kernel, to simplify the case, I only talk about receiving diretion.</p>
 
 <p><img src="/images/tcpflow.png" alt="TCP FLOW">
@@ -234,60 +231,51 @@
 HOOK function connect, for TCP tcp_v4_connect, send SYN to server, and set TCP socket state to TCP_SYN_SENT;<br>
 Server reply SYN ACK, it is handled by HOOK function backlog_rcv, tcp_v4_do_rcv in TCP, it calls tcp_rcv_state_process to deal with state TCP_SYN_SENT;<br>
 tcp_synsent_state_process called to handle SYN ACK from server, it send SYN ACK back to server, and set TCP socket state to TCP_ESTABLISHED, if TCP flags server send are not SYN ACK, like RST, it will deal with in different way.  </p>
-
-<blockquote>
-<p>TTL record in tcp_synsent_state_process<br>
-we can record TTL value from server here after tcp state to TCP_ESTABLISHED<br>
-# code segement<br>
-inet_sk(sk)-&gt;mc_ttl = ip_hdr(skb)-&gt;ttl;  </p>
-</blockquote>
-
+<div class="highlight"><pre><code class="language-text" data-lang="text">#TTL record in tcp_synsent_state_process  
+ we can record TTL value from server here after tcp state to TCP_ESTABLISHED  
+# code segement  
+inet_sk(sk)-&gt;mc_ttl = ip_hdr(skb)-&gt;ttl;  
+</code></pre></div>
 <p>after connection established, HOOK backblog_rcv will handle stream in fast path under the condition of flag in TCP header match flag in previous packet, it calls tcp_rcv_established, if there is one packet with flag RST recevie, it will obvious make flag unmatch with previous one, and packet will go to slow path, tcp_validate_incoming will be called to handled the exception, which define in net/ipv4/tcp_input.c.  </p>
 
 <p>In tcp_validate_incoming, flags checking plays significant role, including RST flag checking.  </p>
-
-<blockquote>
-<p>code segment of function tcp_validate_incoming<br>
-  /* Step 2: check RST bit <em>/<br>
-  if (th-&gt;rst) {<br>
-      /</em> RFC 5961 3.2 :<br>
-       * If sequence number exactly matches RCV.NXT, then<br>
-       *     RESET the connection<br>
-       * else<br>
-       *     Send a challenge ACK<br>
-       */<br>
-      if (TCP_SKB_CB(skb)-&gt;seq == tp-&gt;rcv_nxt)<br>
-          tcp_reset(sk);<br>
-      else<br>
-          tcp_send_challenge_ack(sk, skb);<br>
-      goto discard;<br>
-  }  </p>
-</blockquote>
-
+<div class="highlight"><pre><code class="language-text" data-lang="text">#code segment of function tcp_validate_incoming  
+    /* Step 2: check RST bit */  
+    if (th-&gt;rst) {  
+        /* RFC 5961 3.2 :  
+         * If sequence number exactly matches RCV.NXT, then  
+         *     RESET the connection  
+         * else  
+         *     Send a challenge ACK  
+         */  
+        if (TCP_SKB_CB(skb)-&gt;seq == tp-&gt;rcv_nxt)  
+            tcp_reset(sk);  
+        else  
+            tcp_send_challenge_ack(sk, skb);  
+        goto discard;  
+    }  
+</code></pre></div>
 <p>By default, tcp_reset will be called to terminate the connection, if RST flag set.<br>
 Defense attack fixup:</p>
-
-<blockquote>
-<p>code segment of function tcp_validate_incoming<br>
-  /* Step 2: check RST bit <em>/<br>
-  if (th-&gt;rst) {<br>
-      /</em> RFC 5961 3.2 :<br>
-       * If sequence number exactly matches RCV.NXT, then<br>
-       *     RESET the connection<br>
-       * else<br>
-       *     Send a challenge ACK<br>
-       <em>/<br>
-      /</em> if TTL difference between RST and SYN packet received from peer more than 4, ignore RST, it is potential attack */<br>
-      if (inet_sk(sk)-&gt;mc_ttl &gt; 1 &amp;&amp; abs(ip_hdr(skb)-&gt;ttl - inet_sk(sk)-&gt;mc_ttl) &gt; 4)<br>
-          goto discard;<br>
-      else if (TCP_SKB_CB(skb)-&gt;seq == tp-&gt;rcv_nxt)<br>
-          tcp_reset(sk);<br>
-      else<br>
-          tcp_send_challenge_ack(sk, skb);<br>
-      goto discard;<br>
-  }  </p>
-</blockquote>
-
+<div class="highlight"><pre><code class="language-text" data-lang="text">#code segment of function tcp\_validate\_incoming  
+    /* Step 2: check RST bit */  
+    if (th-&gt;rst) {  
+        /* RFC 5961 3.2 :  
+         * If sequence number exactly matches RCV.NXT, then  
+         *     RESET the connection  
+         * else  
+         *     Send a challenge ACK  
+         */  
+       /* if TTL difference between RST and SYN packet received from peer more than 4, ignore RST, it is potential attack */  
+       if (inet_sk(sk)-&gt;mc_ttl &gt; 1 &amp;&amp; abs(ip_hdr(skb)-&gt;ttl - inet_sk(sk)-&gt;mc_ttl) &gt; 4)  
+           goto discard;  
+        else if (TCP_SKB_CB(skb)-&gt;seq == tp-&gt;rcv_nxt)  
+            tcp_reset(sk);  
+        else  
+            tcp_send_challenge_ack(sk, skb);  
+        goto discard;  
+    }  
+</code></pre></div>
 <p>Fix me, if you find something wrong in my article, Thanks.</p>
 
 </article>
