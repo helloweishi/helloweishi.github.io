@@ -7,6 +7,56 @@
     <atom:link href="https://github.com/helloweishi//feed.xml" rel="self" type="application/rss+xml" />
     
       <item>
+        <title>Linux Kernel Network Framework</title>
+        <description>&lt;p&gt;Talking about network, I believe everyone knows Internet, each day, we live and work, we can&amp;rsquo;t get ride of it. but how our computer, or phone talk to each other, or how network works, that alway be the interesting thing we like to know, it is a new world of our lives, it is the basic of communication, which connect all of us.  &lt;/p&gt;
+
+&lt;p&gt;In this series, I like to show something about network, I hopes it can help you to figure out how network works. To make network manageable, and network devices can communicate with each other, no matter what OS they run, we need some unified rules to define how network device should react when it receives something from others, which came out a global network organization, it created a unified network model, which splits network into 7 layers, each layer has its own mission and self-defined functionality, which includes what information it should take, how it should communication with other layers, etc. These layers are &lt;strong&gt;physical layer&lt;/strong&gt;, &lt;strong&gt;data link layer&lt;/strong&gt;, &lt;strong&gt;network layer&lt;/strong&gt;, &lt;strong&gt;transport layer&lt;/strong&gt;, &lt;strong&gt;session layer&lt;/strong&gt;, &lt;strong&gt;representation layer&lt;/strong&gt;, and &lt;strong&gt;application layer&lt;/strong&gt;, but to keep things simple, in practical use, we merged session layer and representation layer into application layer, which become only 5 layer in practice.  &lt;/p&gt;
+
+&lt;p&gt;&lt;big&gt;&lt;strong&gt;Functionality definition&lt;/strong&gt;&lt;/big&gt;:&lt;br&gt;
+&lt;strong&gt;Physical Layer&lt;/strong&gt;: it provides capability that network message transmit on physical media.&lt;br&gt;
+&lt;strong&gt;Data Link Layer&lt;/strong&gt;: it defines local address, which locatable in local network, provide network management capability in local network.&lt;br&gt;
+&lt;strong&gt;Network Layer&lt;/strong&gt;: it defines global address database, which locatable in global network.&lt;br&gt;
+&lt;strong&gt;Transport Layer&lt;/strong&gt;: it provides connection management capability.&lt;br&gt;
+&lt;strong&gt;Application Layer&lt;/strong&gt;: it provides communication capability between network devices, convert messages into human readable format.  &lt;/p&gt;
+
+&lt;p&gt;In Linux, there are 4 layers in the bottom implemented in kernel space, and application layer is implemented in user space, in this series, I mainly focus on kernel stack, the major part of physical layer is device driver of hardware, it differ from media to media, like WIFI, Ethernet, ATM, GPON,  etc, so in Linux kernel, the most unified part is from data link layer to transport layer, and that is my topic.  &lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/Network_framework_state.png&quot; alt=&quot;network framework&quot;&gt;
+&lt;center&gt;&lt;small&gt;Figure 1: Linux kernel network framework&lt;/small&gt;&lt;/center&gt;  &lt;/p&gt;
+
+&lt;h2 id=&quot;data-link-layer&quot;&gt;Data Link Layer&lt;/h2&gt;
+
+&lt;p&gt;In order to communication with physical layer, it provide something interfaces, like network interrupt handler, poll API, etc, which can deliver packets up and down.&lt;br&gt;
+Receiving data from physical layer, it usually do in interrupt, as network throughput capability goes higher, it already become a bottleneck, so there are several optimization here, like NAPI, network interrupt threading.&lt;br&gt;
+If source network interface data received from is inside bridge, data will be delivered into bridge stack, or it will take off layer 2 header and deliver packets up to network layer.&lt;br&gt;
+when there are some packet need to send out, it will insert its layer 2 header, like MAC address, VLAN, etc, into packet, and deliver packet to target network interface&amp;rsquo;s transmitting queue.&lt;br&gt;
+In bridge stack, packets will be handled based on layer 2 header, like MAC address, VLAN, briefly speaking, packets in bridge stack have two direction, one is deliver packet up to network layer if target MAC address is local machine, the other is deliver packets down to physical layer if target MAC address is other host, before reaching target, packets need to pass through layer 2 firewall system.  &lt;/p&gt;
+
+&lt;h2 id=&quot;network-layer&quot;&gt;Network Layer&lt;/h2&gt;
+
+&lt;p&gt;when network layer init, it registers its supported layer 3 protocol type in a linked list, like IPV4, IPV6, and provide a receiving HOOK function, like ip_rcv for IPV4, which used to receive packets from layer 2, so when data link layer deliver packets up, it will iterate this linked list, and call its receiving HOOK function if layer 3 protocol match.&lt;br&gt;
+In network layer, packets will be handled based on IP header, its target direction depends on the result of route table look-up, up to transport layer if target IP address is local machine, or down to data link layer if target IP address is other host, before reaching target, packets need to pass through layer 3 firewall system.&lt;br&gt;
+when packet need to deliver up to transport layer, it will take off layer 3 header before delivering.&lt;br&gt;
+when packet need to deliver down to data link layer, it will insert layer 3 header based on the result of route table look-up, and deliver packets to target transmitting queue.  &lt;/p&gt;
+
+&lt;h2 id=&quot;transport-layer&quot;&gt;Transport Layer&lt;/h2&gt;
+
+&lt;p&gt;The major task in this layer is connection management, whenever devices communicate, they need to establish a connection first, it is done on this layer via socket, which create a structure called &lt;code&gt;struct sock&lt;/code&gt; to record and maintain all the information of this connection, and insert it into hash table of each supported protocol, like UDP, TCP.&lt;br&gt;
+when network layer deliver packets up, it will find the connection related in hash table, if succeed, it take off layer 4 header, append packets into socket&amp;rsquo;s receiving queue, and wake up application in user space, which will receive packets into application layer, if no connection find in hash table, packets will be dropped. 
+when application send message down, it store at socket&amp;rsquo;s transmitting queue, transport layer will dequeue from transmitting queue, and find the destination in route table based on information in &lt;code&gt;struct sock&lt;/code&gt;, before delivering packets down, it will fill layer 4 header, and calculate checksum.  &lt;/p&gt;
+
+&lt;h2 id=&quot;conclusion&quot;&gt;conclusion&lt;/h2&gt;
+
+&lt;p&gt;each layer in Linux kernel is self-organized, it just cares what input from neighbor layers, what output to neighbor layers, which have better simplicity and flexibility. When deliver packet down and up, it just manipulate the data pointer, no real memory operation, it can benefit memory management, and make data delivering between layers faster. Kernel use linked list and hash table to manage protocol in each layer, it can grow up dynamically, and protocol designing is modularized, so it can keeping updating at runtime, it offer much scalability, and we can benefit from this design technical, for our design, we can learn a lot from it.  &lt;/p&gt;
+
+&lt;p&gt;This is the whole network stack framework in Linux kernel, actually, they are a lot I don&amp;rsquo;t show here, in next post, I will focus the details in each layers, any questions, don&amp;rsquo;t hesitate to drop me a email.  &lt;/p&gt;
+</description>
+        <pubDate>Mon, 18 May 2015 19:54:00 +0800</pubDate>
+        <link>https://github.com/helloweishi//network/stack/2015/05/18/Linux-kernel-network-framework/</link>
+        <guid isPermaLink="true">https://github.com/helloweishi//network/stack/2015/05/18/Linux-kernel-network-framework/</guid>
+      </item>
+    
+      <item>
         <title>Defense RST attack from firewall</title>
         <description>&lt;p&gt;Keywords filtering system is one of filtering mechanism in firewall, it can make the connection broken immediately, and the service we visit will stop, one simple example is we search something via Google, browser display connection reset, right after we input the search keywords.  &lt;/p&gt;
 
@@ -188,7 +238,7 @@ Defense attack fixup:&lt;/p&gt;
     
       <item>
         <title>Visit twitter inside firewall without VPN</title>
-        <description>&lt;p&gt;Like youtube and google, twitter is blocked in the same way, if you want to know how firewall filter system works, you can read my previous articles, this article I introduce some ways to walk around firewall, and visit twitter freely.&lt;br&gt;
+        <description>&lt;p&gt;Like &lt;a href=&quot;/network/firewall/2015/04/03/access-youtube-without-vpn/&quot;&gt;youtube&lt;/a&gt; and &lt;a href=&quot;/network/firewall/2015/03/02/access-google-without-vpn/&quot;&gt;google&lt;/a&gt;, twitter is blocked in the same way, if you want to know how firewall filter system works, you can read my previous articles, this article I introduce some ways to walk around firewall, and visit twitter freely.&lt;br&gt;
 The main idea is avoid any DNS packets send out for all blocked sites, when visit twitter, we should find out the IP addresses of blocked sites servers, which reachable, and append them into host file.  &lt;/p&gt;
 
 &lt;p&gt;how can we know all the blocked sites ?&lt;br&gt;
@@ -218,7 +268,7 @@ we can find them out following steps below:&lt;br&gt;
 
 &lt;p&gt;&lt;strong&gt;Here we go.&lt;/strong&gt;&lt;/p&gt;
 
-&lt;p&gt;In last article, I tried to analysis how firewall system block Google, which is &lt;/p&gt;
+&lt;p&gt;&lt;a href=&quot;/network/firewall/2015/03/02/access-google-without-vpn/&quot;&gt;In last article&lt;/a&gt;, I tried to analysis how firewall system block Google, which is &lt;/p&gt;
 
 &lt;ol&gt;
 &lt;li&gt;&lt;p&gt;IP address filtering&lt;/p&gt;&lt;/li&gt;
