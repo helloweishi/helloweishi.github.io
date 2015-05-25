@@ -51,7 +51,7 @@ when application send message down, it store at socket's transmitting queue, tra
 
 ##conclusion  
 
-each layer in Linux kernel is self-organized, it just cares what input from neighbor layers, what output to neighbor layers, which have better simplicity and flexibility. When deliver packet down and up, it just manipulate the data pointer, no real memory operation, it can benefit memory management, and make data delivering between layers faster. Kernel use linked list and hash table to manage protocol in each layer, it can grow up dynamically, and protocol designing is modularized, so it can keeping updating at runtime, it offer much scalability, and we can benefit from this design technical, for our design, we can learn a lot from it.  
+each layer in Linux kernel is self-organized, it just cares what input from neighbor layers, what output to neighbor layers, which have better simplicity and flexibility. When deliver packet down and up, it just manipulate the data pointer, no real memory operation, it can benefit memory management, and make data delivering between layers faster. Kernel use linked list and hash table to manage protocol in each layer, it can grow up dynamically, and protocol designing is modularized, so it can keeping updating at runtime, it offer much scalability, and we can benefit from this design technique, for our design, we can learn a lot from it.  
 
 This is the whole network stack framework in Linux kernel, actually, they are a lot I don't show here, in next post, I will focus the details in each layers, any questions, don't hesitate to drop me a email.  
 
