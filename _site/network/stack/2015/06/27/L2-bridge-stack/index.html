@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Layer 2 Bridge Stack &#8211; Wei</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="bridge in Layer 2 play important role, in this post, I will talk about bridge architecture in Linux kernel, and details in implementation.">
+    <meta name="author" content="Wei">
+    <meta name="keywords" content="network, stack">
+    <link rel="canonical" href="https://github.com/helloweishi//network/stack/2015/06/27/L2-bridge-stack/">
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/css/pixyll.css" type="text/css">
+
+    <!-- Fonts -->
+    <link href='//fonts.googleapis.com/css?family=Merriweather:900,900italic,300,300italic' rel='stylesheet' type='text/css'>
+    <link href='//fonts.googleapis.com/css?family=Lato:900,300' rel='stylesheet' type='text/css'>
+    
+      <link href="//maxcdn.bootstrapcdn.com/font-awesome/4.2.0/css/font-awesome.min.css" rel="stylesheet">
+    
+
+
+    <!-- Open Graph -->
+    <!-- From: https://github.com/mmistakes/hpstr-jekyll-theme/blob/master/_includes/head.html -->
+    <meta property="og:locale" content="en_US">
+    <meta property="og:type" content="article">
+    <meta property="og:title" content="Layer 2 Bridge Stack">
+    <meta property="og:description" content="Welcome to Wei's blog.">
+    <meta property="og:url" content="https://github.com/helloweishi//network/stack/2015/06/27/L2-bridge-stack/">
+    <meta property="og:site_name" content="Wei">
+
+    <!-- Icons -->
+    <link rel="apple-touch-icon" sizes="57x57" href="apple-touch-icon-57x57.png">
+    <link rel="apple-touch-icon" sizes="114x114" href="apple-touch-icon-114x114.png">
+    <link rel="apple-touch-icon" sizes="72x72" href="apple-touch-icon-72x72.png">
+    <link rel="apple-touch-icon" sizes="144x144" href="apple-touch-icon-144x144.png">
+    <link rel="apple-touch-icon" sizes="60x60" href="apple-touch-icon-60x60.png">
+    <link rel="apple-touch-icon" sizes="120x120" href="apple-touch-icon-120x120.png">
+    <link rel="apple-touch-icon" sizes="76x76" href="apple-touch-icon-76x76.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="apple-touch-icon-152x152.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon-180x180.png">
+    <link rel="icon" type="image/png" href="favicon-192x192.png" sizes="192x192">
+    <link rel="icon" type="image/png" href="favicon-160x160.png" sizes="160x160">
+    <link rel="icon" type="image/png" href="favicon-96x96.png" sizes="96x96">
+    <link rel="icon" type="image/png" href="favicon-16x16.png" sizes="16x16">
+    <link rel="icon" type="image/png" href="favicon-32x32.png" sizes="32x32">
+</head>
+
+<body class="">
+  <div class="site-wrap">
+    <header class="site-header px2 px-responsive">
+  <div class="mt2 wrap">
+    <div class="measure">
+      <a href="https://github.com/helloweishi/" class="site-title">Wei</a>
+      <nav class="site-nav right">
+        <a href="/about/">About</a>
+<a href="/contact/">Contact</a>
+
+      </nav>
+      <div class="clearfix"></div>
+      
+        <div class="social-icons">
+  <div class="left">
+    
+      <a class="fa fa-github" href="https://github.com/helloweishi"></a>
+    
+    
+    <a class="fa fa-rss" href="/feed.xml"></a>
+    
+      <a class="fa fa-twitter" href="https://twitter.com/weishigoname"></a>
+    
+    
+      <a class="fa fa-google-plus" href="https://plus.google.com/weishigogo/posts"></a>
+    
+    
+      <a class="fa fa-envelope" href="mailto:weishigoname@hotmail.com"></a>
+    
+    
+      <a class="fa fa-linkedin" href="https://www.linkedin.com/in/weishigoname"></a>
+    
+  </div>
+  <div class="right">
+    
+    
+    
+  </div>
+</div>
+<div class="clearfix"></div>
+
+      
+    </div>
+  </div>
+</header>
+
+
+    <div class="post p2 p-responsive wrap" role="main">
+      <div class="measure">
+        
+
+
+<div class="post-header mb2">
+  <h1>Layer 2 Bridge Stack</h1>
+  <span class="post-meta">Jun 27, 2015</span><br>
+  
+  <span class="post-meta small">11 minute read</span>
+</div>
+
+<article class="post-content">
+  <p>In this post, I will talk about L2 architecture in Linux kernel network stack, focus on data flow, how packets receiving in, and route out. About network topology maintaining, like STP, I won&rsquo;t talk here.  </p>
+
+<h3 id="how-packets-receiving-in-?">how packets receiving in ?</h3>
+
+<p>Hardware interrupt will raise when packets arrive, hardware driver deliver packets to CPU input queue via <code>netif_rx</code>, which define in file net/core/dev.c, and then, raise Softirq <code>NET_RX_SOFTIRQ</code>, and packets are received into layer 2 in Softirq handler, check the initialize part:  </p>
+<div class="highlight"><pre><code class="language-c" data-lang="c"><span class="k">static</span> <span class="kt">int</span> <span class="n">__init</span> <span class="nf">net_dev_init</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="p">...</span>
+    <span class="n">open_softirq</span><span class="p">(</span><span class="n">NET_TX_SOFTIRQ</span><span class="p">,</span> <span class="n">net_tx_action</span><span class="p">);</span>
+    <span class="n">open_softirq</span><span class="p">(</span><span class="n">NET_RX_SOFTIRQ</span><span class="p">,</span> <span class="n">net_rx_action</span><span class="p">);</span>
+    <span class="p">...</span>
+<span class="p">}</span>  
+</code></pre></div>
+<p><code>net_rx_action</code> is used to receive packets from CPU input queue, it will call <code>netif_receive_skb</code>, then <code>__netif_receive_skb_core</code>, which is the main function to route packets, let&rsquo;s check this function in detail:  </p>
+<div class="highlight"><pre><code class="language-c" data-lang="c">    <span class="n">list_for_each_entry_rcu</span><span class="p">(</span><span class="n">ptype</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">ptype_all</span><span class="p">,</span> <span class="n">list</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="n">ptype</span><span class="o">-&gt;</span><span class="n">dev</span> <span class="o">||</span> <span class="n">ptype</span><span class="o">-&gt;</span><span class="n">dev</span> <span class="o">==</span> <span class="n">skb</span><span class="o">-&gt;</span><span class="n">dev</span><span class="p">)</span> <span class="p">{</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">pt_prev</span><span class="p">)</span>
+                <span class="n">ret</span> <span class="o">=</span> <span class="n">deliver_skb</span><span class="p">(</span><span class="n">skb</span><span class="p">,</span> <span class="n">pt_prev</span><span class="p">,</span> <span class="n">orig_dev</span><span class="p">);</span>
+            <span class="n">pt_prev</span> <span class="o">=</span> <span class="n">ptype</span><span class="p">;</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+</code></pre></div>
+<p><code>ptype_all</code> is used for delivering packet from kernel to user space directly, bypassing L2, and L3 firewall system, but it just copy packets into user space, and don&rsquo;t stop here, the original packets processing continue. Packets capturing tools, like wireshark, sniffer, use this to capture all packets, and we can register HOOK at <code>ptype_all</code> list to receive specific kind of packets via creating L2 socket.  </p>
+<div class="highlight"><pre><code class="language-c" data-lang="c">    <span class="k">if</span> <span class="p">(</span><span class="n">vlan_tx_tag_present</span><span class="p">(</span><span class="n">skb</span><span class="p">))</span> <span class="p">{</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">pt_prev</span><span class="p">)</span> <span class="p">{</span>
+            <span class="n">ret</span> <span class="o">=</span> <span class="n">deliver_skb</span><span class="p">(</span><span class="n">skb</span><span class="p">,</span> <span class="n">pt_prev</span><span class="p">,</span> <span class="n">orig_dev</span><span class="p">);</span>
+            <span class="n">pt_prev</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
+        <span class="p">}</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">vlan_do_receive</span><span class="p">(</span><span class="o">&amp;</span><span class="n">skb</span><span class="p">))</span>
+            <span class="k">goto</span> <span class="n">another_round</span><span class="p">;</span>
+        <span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="n">unlikely</span><span class="p">(</span><span class="o">!</span><span class="n">skb</span><span class="p">))</span>
+            <span class="k">goto</span> <span class="n">unlock</span><span class="p">;</span>
+    <span class="p">}</span>
+</code></pre></div>
+<p>VLAN process here, if receiving interface is in bridge, it won&rsquo;t reach here, because packets already route out in bridge with VLAN header, code here is for packets reaching local host, it takes off VLAN header before delivering up.  </p>
+<div class="highlight"><pre><code class="language-c" data-lang="c">    <span class="n">type</span> <span class="o">=</span> <span class="n">skb</span><span class="o">-&gt;</span><span class="n">protocol</span><span class="p">;</span>
+    <span class="n">list_for_each_entry_rcu</span><span class="p">(</span><span class="n">ptype</span><span class="p">,</span>
+            <span class="o">&amp;</span><span class="n">ptype_base</span><span class="p">[</span><span class="n">ntohs</span><span class="p">(</span><span class="n">type</span><span class="p">)</span> <span class="o">&amp;</span> <span class="n">PTYPE_HASH_MASK</span><span class="p">],</span> <span class="n">list</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">ptype</span><span class="o">-&gt;</span><span class="n">type</span> <span class="o">==</span> <span class="n">type</span> <span class="o">&amp;&amp;</span>
+            <span class="p">(</span><span class="n">ptype</span><span class="o">-&gt;</span><span class="n">dev</span> <span class="o">==</span> <span class="n">null_or_dev</span> <span class="o">||</span> <span class="n">ptype</span><span class="o">-&gt;</span><span class="n">dev</span> <span class="o">==</span> <span class="n">skb</span><span class="o">-&gt;</span><span class="n">dev</span> <span class="o">||</span>
+             <span class="n">ptype</span><span class="o">-&gt;</span><span class="n">dev</span> <span class="o">==</span> <span class="n">orig_dev</span><span class="p">))</span> <span class="p">{</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">pt_prev</span><span class="p">)</span>
+                <span class="n">ret</span> <span class="o">=</span> <span class="n">deliver_skb</span><span class="p">(</span><span class="n">skb</span><span class="p">,</span> <span class="n">pt_prev</span><span class="p">,</span> <span class="n">orig_dev</span><span class="p">);</span>
+            <span class="n">pt_prev</span> <span class="o">=</span> <span class="n">ptype</span><span class="p">;</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">pt_prev</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">unlikely</span><span class="p">(</span><span class="n">skb_orphan_frags</span><span class="p">(</span><span class="n">skb</span><span class="p">,</span> <span class="n">GFP_ATOMIC</span><span class="p">)))</span>
+            <span class="k">goto</span> <span class="n">drop</span><span class="p">;</span>
+        <span class="k">else</span>
+            <span class="n">ret</span> <span class="o">=</span> <span class="n">pt_prev</span><span class="o">-&gt;</span><span class="n">func</span><span class="p">(</span><span class="n">skb</span><span class="p">,</span> <span class="n">skb</span><span class="o">-&gt;</span><span class="n">dev</span><span class="p">,</span> <span class="n">pt_prev</span><span class="p">,</span> <span class="n">orig_dev</span><span class="p">);</span>
+</code></pre></div>
+<p><code>ptype_base</code> is receiving HOOK list of L3 protocol, when network layer init, all supported protocol will register on this list, like IPV4, IPV6, when L3 protocol find on this list, packets will deliver into layer 3, or it will be dropped, code will reach here when receiving interface is not in bridge, or packets&rsquo;s target MAC is local host, which will go into bridge stack first, and then route back.  </p>
+<div class="highlight"><pre><code class="language-c" data-lang="c">    <span class="n">rx_handler</span> <span class="o">=</span> <span class="n">rcu_dereference</span><span class="p">(</span><span class="n">skb</span><span class="o">-&gt;</span><span class="n">dev</span><span class="o">-&gt;</span><span class="n">rx_handler</span><span class="p">);</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">rx_handler</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">pt_prev</span><span class="p">)</span> <span class="p">{</span>
+            <span class="n">ret</span> <span class="o">=</span> <span class="n">deliver_skb</span><span class="p">(</span><span class="n">skb</span><span class="p">,</span> <span class="n">pt_prev</span><span class="p">,</span> <span class="n">orig_dev</span><span class="p">);</span>
+            <span class="n">pt_prev</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
+        <span class="p">}</span>
+        <span class="k">switch</span> <span class="p">(</span><span class="n">rx_handler</span><span class="p">(</span><span class="o">&amp;</span><span class="n">skb</span><span class="p">))</span> <span class="p">{</span>
+        <span class="k">case</span> <span class="nl">RX_HANDLER_CONSUMED</span><span class="p">:</span>
+            <span class="n">ret</span> <span class="o">=</span> <span class="n">NET_RX_SUCCESS</span><span class="p">;</span>
+            <span class="k">goto</span> <span class="n">unlock</span><span class="p">;</span>
+        <span class="k">case</span> <span class="nl">RX_HANDLER_ANOTHER</span><span class="p">:</span>
+            <span class="k">goto</span> <span class="n">another_round</span><span class="p">;</span>
+        <span class="k">case</span> <span class="nl">RX_HANDLER_EXACT</span><span class="p">:</span>
+            <span class="n">deliver_exact</span> <span class="o">=</span> <span class="nb">true</span><span class="p">;</span>
+        <span class="k">case</span> <span class="nl">RX_HANDLER_PASS</span><span class="p">:</span>
+            <span class="k">break</span><span class="p">;</span>
+        <span class="k">default</span><span class="o">:</span>
+            <span class="n">BUG</span><span class="p">();</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+</code></pre></div>
+<p><code>rx_handler</code> is the entry point to deliver packet into bridge stack, check <code>br_add_if</code> in file <code>net/bridge/br_if.c</code>, we can see when network interface add into bridge, its <code>rx_handler</code> will assign to <code>br_handle_frame</code>.  </p>
+<div class="highlight"><pre><code class="language-c" data-lang="c"><span class="kt">int</span> <span class="nf">br_add_if</span><span class="p">(</span><span class="k">struct</span> <span class="n">net_bridge</span> <span class="o">*</span><span class="n">br</span><span class="p">,</span> <span class="k">struct</span> <span class="n">net_device</span> <span class="o">*</span><span class="n">dev</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="p">...</span>
+        <span class="n">err</span> <span class="o">=</span> <span class="n">netdev_rx_handler_register</span><span class="p">(</span><span class="n">dev</span><span class="p">,</span> <span class="n">br_handle_frame</span><span class="p">,</span> <span class="n">p</span><span class="p">);</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">err</span><span class="p">)</span>
+        <span class="k">goto</span> <span class="n">err5</span><span class="p">;</span>
+    <span class="p">...</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>It may have some differences from version to version in Linux kernel, like delivering packets optimization from physical layer to data link layer, its optimizing direction is minimize the frequency of IRQ, but the main steps always the same, the code I show here is kernel version 3.13.  </p>
+
+<h3 id="bridge-stack">Bridge Stack</h3>
+
+<p><img src="/images/bridge_stack.png" alt="bridge stack">
+<center><small>Figure 1: Bridge Stack framework</small></center>  </p>
+
+<p>as we can see from figure above, when packets enter into bridge stack via <code>br_handle_frame</code>, the first HOOK it need to go through is <code>NF_BR_PRE_ROUTING</code>, there are many hook operations linked on every HOOK, and every hook operation has its priority.<br>
+First, let&rsquo;s check this priority structure, it is a enumerate, define in file  <code>include/linux/netfilter_bridge.h</code>:  </p>
+<div class="highlight"><pre><code class="language-c" data-lang="c"><span class="k">enum</span> <span class="n">nf_br_hook_priorities</span> <span class="p">{</span>
+    <span class="n">NF_BR_PRI_FIRST</span> <span class="o">=</span> <span class="n">INT_MIN</span><span class="p">,</span>
+    <span class="n">NF_BR_PRI_NAT_DST_BRIDGED</span> <span class="o">=</span> <span class="o">-</span><span class="mi">300</span><span class="p">,</span>
+    <span class="n">NF_BR_PRI_FILTER_BRIDGED</span> <span class="o">=</span> <span class="o">-</span><span class="mi">200</span><span class="p">,</span>
+    <span class="n">NF_BR_PRI_BRNF</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="n">NF_BR_PRI_NAT_DST_OTHER</span> <span class="o">=</span> <span class="mi">100</span><span class="p">,</span>
+    <span class="n">NF_BR_PRI_FILTER_OTHER</span> <span class="o">=</span> <span class="mi">200</span><span class="p">,</span>
+    <span class="n">NF_BR_PRI_NAT_SRC</span> <span class="o">=</span> <span class="mi">300</span><span class="p">,</span>
+    <span class="n">NF_BR_PRI_LAST</span> <span class="o">=</span> <span class="n">INT_MAX</span><span class="p">,</span>
+<span class="p">};</span>
+</code></pre></div>
+<p>Hook operations with priority value <code>NF_BR_PRI_FIRST</code> have the highest priority, they will be executed before other rules, the implementation is simple, it is just a list, hook operations with low value are inserted toward head, and high value are inserted toward tail, and what about hook operations with the same priority ?  </p>
+<div class="highlight"><pre><code class="language-c" data-lang="c"><span class="kt">int</span> <span class="nf">nf_register_hook</span><span class="p">(</span><span class="k">struct</span> <span class="n">nf_hook_ops</span> <span class="o">*</span><span class="n">reg</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="k">struct</span> <span class="n">nf_hook_ops</span> <span class="o">*</span><span class="n">elem</span><span class="p">;</span>
+    <span class="kt">int</span> <span class="n">err</span><span class="p">;</span>
+
+    <span class="n">err</span> <span class="o">=</span> <span class="n">mutex_lock_interruptible</span><span class="p">(</span><span class="o">&amp;</span><span class="n">nf_hook_mutex</span><span class="p">);</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">err</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">err</span><span class="p">;</span>
+    <span class="n">list_for_each_entry</span><span class="p">(</span><span class="n">elem</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">nf_hooks</span><span class="p">[</span><span class="n">reg</span><span class="o">-&gt;</span><span class="n">pf</span><span class="p">][</span><span class="n">reg</span><span class="o">-&gt;</span><span class="n">hooknum</span><span class="p">],</span> <span class="n">list</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">reg</span><span class="o">-&gt;</span><span class="n">priority</span> <span class="o">&lt;</span> <span class="n">elem</span><span class="o">-&gt;</span><span class="n">priority</span><span class="p">)</span>
+            <span class="k">break</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="n">list_add_rcu</span><span class="p">(</span><span class="o">&amp;</span><span class="n">reg</span><span class="o">-&gt;</span><span class="n">list</span><span class="p">,</span> <span class="n">elem</span><span class="o">-&gt;</span><span class="n">list</span><span class="p">.</span><span class="n">prev</span><span class="p">);</span>
+    <span class="n">mutex_unlock</span><span class="p">(</span><span class="o">&amp;</span><span class="n">nf_hook_mutex</span><span class="p">);</span>
+<span class="cp">#if defined(CONFIG_JUMP_LABEL)</span>
+    <span class="n">static_key_slow_inc</span><span class="p">(</span><span class="o">&amp;</span><span class="n">nf_hooks_needed</span><span class="p">[</span><span class="n">reg</span><span class="o">-&gt;</span><span class="n">pf</span><span class="p">][</span><span class="n">reg</span><span class="o">-&gt;</span><span class="n">hooknum</span><span class="p">]);</span>
+<span class="cp">#endif</span>
+    <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>From code above, it is not difficult to see that hook operation inserted later will be executed first in the hook operations with the same priority.  </p>
+
+<p>Every hook operation has a hook function attached, when it get reached on list, its hook function will be executed.  </p>
+<div class="highlight"><pre><code class="language-c" data-lang="c"><span class="k">struct</span> <span class="n">nf_hook_ops</span> <span class="p">{</span>
+    <span class="k">struct</span> <span class="n">list_head</span> <span class="n">list</span><span class="p">;</span>
+
+    <span class="cm">/* User fills in from here down. */</span>
+    <span class="n">nf_hookfn</span>   <span class="o">*</span><span class="n">hook</span><span class="p">;</span>
+    <span class="k">struct</span> <span class="n">module</span>   <span class="o">*</span><span class="n">owner</span><span class="p">;</span>
+    <span class="kt">void</span>        <span class="o">*</span><span class="n">priv</span><span class="p">;</span>
+    <span class="kt">u_int8_t</span>    <span class="n">pf</span><span class="p">;</span>
+    <span class="kt">unsigned</span> <span class="kt">int</span>    <span class="n">hooknum</span><span class="p">;</span>
+    <span class="cm">/* Hooks are ordered in ascending priority. */</span>
+    <span class="kt">int</span>     <span class="n">priority</span><span class="p">;</span>
+<span class="p">};</span>
+</code></pre></div>
+<p>Let&rsquo;s look at one example:  </p>
+<div class="highlight"><pre><code class="language-c" data-lang="c"><span class="k">static</span> <span class="k">struct</span> <span class="n">nf_hook_ops</span> <span class="n">ebt_ops_filter</span><span class="p">[]</span> <span class="n">__read_mostly</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="p">{</span>
+        <span class="p">.</span><span class="n">hook</span>       <span class="o">=</span> <span class="n">ebt_in_hook</span><span class="p">,</span>
+        <span class="p">.</span><span class="n">owner</span>      <span class="o">=</span> <span class="n">THIS_MODULE</span><span class="p">,</span>
+        <span class="p">.</span><span class="n">pf</span>     <span class="o">=</span> <span class="n">NFPROTO_BRIDGE</span><span class="p">,</span>
+        <span class="p">.</span><span class="n">hooknum</span>    <span class="o">=</span> <span class="n">NF_BR_LOCAL_IN</span><span class="p">,</span>
+        <span class="p">.</span><span class="n">priority</span>   <span class="o">=</span> <span class="n">NF_BR_PRI_FILTER_BRIDGED</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="p">{</span>
+        <span class="p">.</span><span class="n">hook</span>       <span class="o">=</span> <span class="n">ebt_in_hook</span><span class="p">,</span>
+        <span class="p">.</span><span class="n">owner</span>      <span class="o">=</span> <span class="n">THIS_MODULE</span><span class="p">,</span>
+        <span class="p">.</span><span class="n">pf</span>     <span class="o">=</span> <span class="n">NFPROTO_BRIDGE</span><span class="p">,</span>
+        <span class="p">.</span><span class="n">hooknum</span>    <span class="o">=</span> <span class="n">NF_BR_FORWARD</span><span class="p">,</span>
+        <span class="p">.</span><span class="n">priority</span>   <span class="o">=</span> <span class="n">NF_BR_PRI_FILTER_BRIDGED</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="p">{</span>
+        <span class="p">.</span><span class="n">hook</span>       <span class="o">=</span> <span class="n">ebt_out_hook</span><span class="p">,</span>
+        <span class="p">.</span><span class="n">owner</span>      <span class="o">=</span> <span class="n">THIS_MODULE</span><span class="p">,</span>
+        <span class="p">.</span><span class="n">pf</span>     <span class="o">=</span> <span class="n">NFPROTO_BRIDGE</span><span class="p">,</span>
+        <span class="p">.</span><span class="n">hooknum</span>    <span class="o">=</span> <span class="n">NF_BR_LOCAL_OUT</span><span class="p">,</span>
+        <span class="p">.</span><span class="n">priority</span>   <span class="o">=</span> <span class="n">NF_BR_PRI_FILTER_OTHER</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">};</span>
+</code></pre></div>
+<p>This is the filter system in bridge stack, it consists of three hook operations, which registered on <code>NF_BR_LOCAL_IN</code>, <code>NF_BR_FORWARD</code>, and <code>NF_BR_LOCAL_OUT</code>, each hook operation has a hook function, we can add filter rules via command ebtables, in kernel, it just link that rule into filter rule list, when filter hook operation get reached on each HOOK, hook function, such as <code>ebt_in_hook</code>, and <code>ebt_out_hook</code>, will iterate filter rule list, and each rule in filter rule list of that HOOK will be applied.  </p>
+
+<h4 id="ok,-let&#39;s-jump-into-the-framework-of-bridge-stack">Ok, let&rsquo;s jump into the framework of bridge stack</h4>
+
+<h3 id="hook-nf_br_pre_routing">HOOK <code>NF_BR_PRE_ROUTING</code></h3>
+
+<p>there are two hook operations registered on this HOOK, one with priority <code>NF_BR_PRI_NAT_DST_BRIDGED</code>, one with priority <code>NF_BR_PRI_BRNF</code>.<br>
+The first hook operation is used for DNAT, it means we can change packets destination information, like destination MAC address, which we can add rules at NAT table via ebtables. 
+The second hook operation will do some destination fix up if DNAT takes place, re-parse layer 3 header, and route packet.  </p>
+
+<h3 id="hook-nf_br_forward">HOOK <code>NF_BR_FORWARD</code></h3>
+
+<p>there are three hook operations registered on this HOOK, one with priority <code>NF_BR_PRI_FILTER_BRIDGED</code>, one with priority <code>NF_BR_PRI_BRNF-1</code>, and one with priority <code>NF_BR_PRI_BRNF</code>.<br>
+The first hook operation with hook function <code>ebt_in_hook</code> will iterate filter rules registered on this HOOK, and return when one rule match.<br>
+The second hook operation with hook function <code>br_nf_forward_ip</code>, as the name imply, it used to forward IP packets, how? it let packet go through all hook operations registered on HOOK <code>NF_INET_FORWARD</code> at layer 3, if not IP packets, it just let it pass through.<br>
+The third hook operation with hook function <code>br_nf_forward_arp</code>, it used to deal with ARP packet, packet will deliver to HOOK <code>NF_ARP_FORWARD</code>. For ARP, its framework consists of three HOOK, which are <code>NF_ARP_IN</code>, <code>NF_ARP_OUT</code>, and <code>NF_ARP_FORWARD</code>, details can be seen in file net/ipv4/arp.c.  </p>
+
+<h3 id="hook-nf_br_local_in">HOOK <code>NF_BR_LOCAL_IN</code></h3>
+
+<p>There are two hook operations registered on this HOOK, one with priority <code>NF_BR_PRI_FILTER_BRIDGED</code>， and one with priority <code>NF_BR_PRI_BRNF</code>.<br>
+The first hook operation with hook function <code>ebt_in_hook</code>, as mentioned above, it used for packet filtering.<br>
+The second hook operation with hook function <code>br_nf_local_in</code> will do some destination checking, packets will deliver up to layer 3 if destination is right, or packets will be drop.  </p>
+
+<h3 id="hook-nf_br_local_out">HOOK <code>NF_BR_LOCAL_OUT</code></h3>
+
+<p>There are two hook operations registered on this HOOK, one with priority <code>NF_BR_PRI_NAT_DST_OTHER</code>, one with priority <code>NF_BR_PRI_FILTER_OTHER</code>.<br>
+The first hook operation with hook function <code>ebt_nat_out</code> will iterate NAT rules registered on this HOOK, and return when one rule match.<br>
+The second hook operation with hook function <code>ebt_out_hook</code> will iterate filter rules registered on this hook, and return when one rule match.  </p>
+
+<h3 id="hook-nf_br_post_routing">HOOK <code>NF_BR_POST_ROUTING</code></h3>
+
+<p>There are two hook operations registered on this HOOK, one with priority <code>NF_BR_PRI_NAT_SRC</code>, one with priority <code>NF_BR_PRI_LAST</code>.<br>
+The first hook operation with hook function <code>ebt_nat_out</code>, as mentioned above, it is used for NAT.<br>
+The second hook operation with hook function <code>br_nf_post_routing</code> will deliver packets to HOOK <code>NF_INET_POST_ROUTING</code> for IP, it will do some connection fix up if NAT takes place there, if not IP packets, it just pass it through.  </p>
+
+<h3 id="how-packet-send-out-?">how packet send out ?</h3>
+
+<p>After packets go through bridge stack, layer 2 header will be inserted into packets, and the API to send packets out is <code>dev_queue_xmit</code>, if QOS is enabled, packets will be enqueued, or it will be deliver into network device&rsquo;s transmit queue directly, and interrupt <code>NET_TX_SOFTIRQ</code> raise, packets are delivered down.  </p>
+
+<h3 id="conclusion">conclusion</h3>
+
+<p>From the framework of bridge stack, we can see there are several hook operations registered on each HOOK, each hook operation has one priority, which determine its execution order. During our development, we can extend hook operations on each HOOK dynamically based on our needs, what we should take care about is their priority and what character each HOOK is in framework.  </p>
+
+</article>
+
+
+  <div class="share-page">
+  Share this post!
+
+  <div class="share-links">
+    
+
+    
+      <a class="fa fa-twitter" href="https://twitter.com/intent/tweet?text=Layer 2 Bridge Stack&url=https://github.com/helloweishi//network/stack/2015/06/27/L2-bridge-stack/" rel="nofollow" target="_blank" title="Share on Twitter"></a>
+    
+
+    
+      <a class="fa fa-google-plus" href="https://plus.google.com/share?url=https://github.com/helloweishi//network/stack/2015/06/27/L2-bridge-stack/" rel="nofollow" target="_blank" title="Share on Google+"></a>
+    
+
+    
+      <a class="fa fa-linkedin" href="http://www.linkedin.com/shareArticle?url=https://github.com/helloweishi//network/stack/2015/06/27/L2-bridge-stack/&title=Layer 2 Bridge Stack" rel="nofollow" target="_blank" title="Share on LinkedIn"></a>
+    
+
+    
+      <a class="fa fa-digg" href="http://digg.com/submit?url=https://github.com/helloweishi//network/stack/2015/06/27/L2-bridge-stack/&title=Layer 2 Bridge Stack" rel="nofollow" target="_blank" title="Share on Digg"></a>
+    
+
+    
+      <a class="fa fa-tumblr" href="http://www.tumblr.com/share/link?url=https://github.com/helloweishi//network/stack/2015/06/27/L2-bridge-stack/&name=Layer 2 Bridge Stack" rel="nofollow" target="_blank" title="Share on Tumblr"></a>
+    
+
+    
+      <a class="fa fa-reddit" href="http://reddit.com/submit?url=https://github.com/helloweishi//network/stack/2015/06/27/L2-bridge-stack/&title=Layer 2 Bridge Stack" rel="nofollow" target="_blank" title="Share on Reddit"></a>
+    
+
+    
+      <a class="fa fa-stumbleupon" href="http://www.stumbleupon.com/submit?url=https://github.com/helloweishi//network/stack/2015/06/27/L2-bridge-stack/&title=Layer 2 Bridge Stack" rel="nofollow" target="_blank" title="Share on StumbleUpon"></a>
+    
+  </div>
+</div>
+
+
+
+
+
+
+  <div id="disqus_thread"></div>
+  <script type="text/javascript">
+    var disqus_shortname  = 'weishigoname';
+    var disqus_identifier = '/network/stack/2015/06/27/L2-bridge-stack';
+
+    (function() {
+      var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+      dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+      (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+    })();
+  </script>
+  <noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+
+
+
+
+      </div>
+    </div>
+  </div>
+
+  <footer class="footer">
+  <div class="p2 wrap">
+    <div class="measure mt1 center">
+      <small>
+        <br>
+ 
+      </small>
+    </div>
+  </div>
+</footer>
+
+
+
+</body>
+</html>

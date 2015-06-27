@@ -24,7 +24,7 @@ github_username: helloweishi
 stackoverflow_id:
 twitter_username: weishigoname
 google_plus_id: weishigogo
-linkedin_username:
+linkedin_username: weishigoname
 bitcoin_url:
 paypal_url:
 flattr_button:
@@ -36,11 +36,11 @@ share_text: 'Share this post!'
 share_facebook: false
 share_twitter: true
 share_googleplus: true
-share_linkedin: false
-share_digg: false
-share_tumblr: false
-share_reddit: false
-share_stumbleupon: false
+share_linkedin: true
+share_digg: true
+share_tumblr: true
+share_reddit: true
+share_stumbleupon: true
 
 # Build settings
 markdown:     redcarpet
