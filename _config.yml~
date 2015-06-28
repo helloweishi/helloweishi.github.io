@@ -4,7 +4,7 @@ email:       weishigoname@hotmail.com
 author:      Wei
 description: "Welcome to Wei's blog."
 baseurl:     ""
-url:         "http://helloweishi.github.io/"
+url:         "http://helloweishi.github.io"
 
 # Google analytics
 google_analytics:
