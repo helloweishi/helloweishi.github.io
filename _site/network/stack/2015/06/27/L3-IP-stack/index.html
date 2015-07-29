@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Layer 3 IP Stack &#8211; Wei</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Layer 3 is the most important part of Linux kernel network framework, and also it is the most complicate layer, in this post, I dig it into details.">
+    <meta name="author" content="Wei">
+    <meta name="keywords" content="network, stack">
+    <link rel="canonical" href="http://helloweishi.github.io/network/stack/2015/06/27/L3-IP-stack/">
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/css/pixyll.css" type="text/css">
+
+    <!-- Fonts -->
+    <link href='//fonts.googleapis.com/css?family=Merriweather:900,900italic,300,300italic' rel='stylesheet' type='text/css'>
+    <link href='//fonts.googleapis.com/css?family=Lato:900,300' rel='stylesheet' type='text/css'>
+    
+      <link href="//maxcdn.bootstrapcdn.com/font-awesome/4.2.0/css/font-awesome.min.css" rel="stylesheet">
+    
+
+
+    <!-- Open Graph -->
+    <!-- From: https://github.com/mmistakes/hpstr-jekyll-theme/blob/master/_includes/head.html -->
+    <meta property="og:locale" content="en_US">
+    <meta property="og:type" content="article">
+    <meta property="og:title" content="Layer 3 IP Stack">
+    <meta property="og:description" content="Welcome to Wei's blog.">
+    <meta property="og:url" content="http://helloweishi.github.io/network/stack/2015/06/27/L3-IP-stack/">
+    <meta property="og:site_name" content="Wei">
+
+    <!-- Icons -->
+    <link rel="apple-touch-icon" sizes="57x57" href="apple-touch-icon-57x57.png">
+    <link rel="apple-touch-icon" sizes="114x114" href="apple-touch-icon-114x114.png">
+    <link rel="apple-touch-icon" sizes="72x72" href="apple-touch-icon-72x72.png">
+    <link rel="apple-touch-icon" sizes="144x144" href="apple-touch-icon-144x144.png">
+    <link rel="apple-touch-icon" sizes="60x60" href="apple-touch-icon-60x60.png">
+    <link rel="apple-touch-icon" sizes="120x120" href="apple-touch-icon-120x120.png">
+    <link rel="apple-touch-icon" sizes="76x76" href="apple-touch-icon-76x76.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="apple-touch-icon-152x152.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon-180x180.png">
+    <link rel="icon" type="image/png" href="favicon-192x192.png" sizes="192x192">
+    <link rel="icon" type="image/png" href="favicon-160x160.png" sizes="160x160">
+    <link rel="icon" type="image/png" href="favicon-96x96.png" sizes="96x96">
+    <link rel="icon" type="image/png" href="favicon-16x16.png" sizes="16x16">
+    <link rel="icon" type="image/png" href="favicon-32x32.png" sizes="32x32">
+</head>
+
+<body class="animated fade-in-down">
+  <div class="site-wrap">
+    <header class="site-header px2 px-responsive">
+  <div class="mt2 wrap">
+    <div class="measure">
+      <a href="http://helloweishi.github.io" class="site-title">Wei</a>
+      <nav class="site-nav right">
+        <a href="/about/">About</a>
+<a href="/contact/">Contact</a>
+
+      </nav>
+      <div class="clearfix"></div>
+      
+        <div class="social-icons">
+  <div class="left">
+    
+      <a class="fa fa-github" href="https://github.com/helloweishi"></a>
+    
+    
+    <a class="fa fa-rss" href="/feed.xml"></a>
+    
+      <a class="fa fa-twitter" href="https://twitter.com/weishigoname"></a>
+    
+    
+      <a class="fa fa-google-plus" href="https://plus.google.com/weishigogo/posts"></a>
+    
+    
+      <a class="fa fa-envelope" href="mailto:weishigoname@hotmail.com"></a>
+    
+    
+      <a class="fa fa-linkedin" href="https://www.linkedin.com/in/weishigoname"></a>
+    
+  </div>
+  <div class="right">
+    
+    
+    
+  </div>
+</div>
+<div class="clearfix"></div>
+
+      
+    </div>
+  </div>
+</header>
+
+
+    <div class="post p2 p-responsive wrap" role="main">
+      <div class="measure">
+        
+
+
+<div class="post-header mb2">
+  <h1>Layer 3 IP Stack</h1>
+  <span class="post-meta">Jun 27, 2015</span><br>
+  
+  <span class="post-meta small">12 minute read</span>
+</div>
+
+<article class="post-content">
+  <p>Layer 3, as we all know, play the most important role in network, it is the main layer which route packets between routers and routers until it reach target host, and which network security apply on.<br>
+In this post, I will focus on the basic framework of layer 3, and there are some sub-layers wealth us to dig, too, like <code>nf_conntrack</code>, route, ALG, netfilter, and etc, which designed based on the basic framework, and I will introduce them in later posts.  </p>
+
+<h3 id="how-packets-receving-in-layer-3-?">How packets receving in layer 3 ?</h3>
+
+<p>In last post, I mentioned linked list <code>ptype_base</code>, it is layers 3 protocol hook list, protocol hook registered on this list is iterated in API <code>netif_receive_skb</code>, hook function will be called if protocol find on this list.  </p>
+<div class="highlight"><pre><code class="language-c" data-lang="c"><span class="k">static</span> <span class="k">struct</span> <span class="n">packet_type</span> <span class="n">ip_packet_type</span> <span class="n">__read_mostly</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="p">.</span><span class="n">type</span> <span class="o">=</span> <span class="n">cpu_to_be16</span><span class="p">(</span><span class="n">ETH_P_IP</span><span class="p">),</span>
+    <span class="p">.</span><span class="n">func</span> <span class="o">=</span> <span class="n">ip_rcv</span><span class="p">,</span>
+<span class="p">};</span>
+
+<span class="k">static</span> <span class="kt">int</span> <span class="n">__init</span> <span class="nf">inet_init</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="p">...</span>
+
+    <span class="n">dev_add_pack</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ip_packet_type</span><span class="p">);</span>
+
+    <span class="p">...</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>The code segment shows above is defined in file <code>net/ipv4/af_inet.c</code>, it is the IPV4 protocol hook with hook function <code>ip_rcv</code>, which defined in file  <code>net/ipv4/ip_input.c</code>.<br>
+For IPV6, it is similar:  </p>
+<div class="highlight"><pre><code class="language-c" data-lang="c"><span class="k">static</span> <span class="k">struct</span> <span class="n">packet_type</span> <span class="n">ipv6_packet_type</span> <span class="n">__read_mostly</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="p">.</span><span class="n">type</span> <span class="o">=</span> <span class="n">cpu_to_be16</span><span class="p">(</span><span class="n">ETH_P_IPV6</span><span class="p">),</span>
+    <span class="p">.</span><span class="n">func</span> <span class="o">=</span> <span class="n">ipv6_rcv</span><span class="p">,</span>
+<span class="p">};</span>
+
+<span class="k">static</span> <span class="kt">int</span> <span class="n">__init</span> <span class="nf">ipv6_packet_init</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="n">dev_add_pack</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ipv6_packet_type</span><span class="p">);</span>
+    <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>In hook function, it will do some packet header validation, and then packets will be sent to HOOK <code>NF_INET_PRE_ROUTING</code>.  </p>
+
+<h3 id="layer-3-framework">Layer 3 framework</h3>
+
+<p><img src="/images/IP_STACK.png" alt="IP stack">
+<center><small>Figure 1: IP Stack framework</small></center>  </p>
+
+<p>Like layer 2, Layer 3 framework also consists of 5 HOOKs, but they all design based on header information above layer 3, like IP header, TCP header, UDP header. HOOK <code>NF_INET_PRE_ROUTING</code> is the entry point, what it does here are SNAT, classification, more importantly, connection track, after going through, the next thing to do is route table look-up, which determines where packets should route to, the first option is route to local host, packets is delivered up after HOOK <code>NF_INET_LOCAL_IN</code>, which will handle the packets filter, the another option is route to other host, in this routine, packets need to go through HOOK <code>NF_INET_FORWARD</code> for packet filtering, first. The another entry point of layer 3 stack is HOOK <code>NF_INET_LOCAL_OUT</code>, which used for self-generated packets. For packet sent from local host, route table look-up actually happens at layer 4 before packet delivering down, so when packets reach HOOK <code>NF_INET_LOCAL_OUT</code>, it already know where it should route to, so at this HOOK, it will do packet filtering, before packets deliver down, the last HOOK is <code>NF_INET_POST_ROUTING</code>, at this HOOK, it will do DNAT, classification, and connection track.  </p>
+
+<p>Before digging into each HOOK, let&rsquo;s have a look at hook operation priority structure, which defines in file <code>include/uapi/linux/netfiler_ipv4.h</code>:  </p>
+<div class="highlight"><pre><code class="language-c" data-lang="c"><span class="k">enum</span> <span class="n">nf_ip_hook_priorities</span> <span class="p">{</span>
+    <span class="n">NF_IP_PRI_FIRST</span> <span class="o">=</span> <span class="n">INT_MIN</span><span class="p">,</span>
+    <span class="n">NF_IP_PRI_CONNTRACK_DEFRAG</span> <span class="o">=</span> <span class="o">-</span><span class="mi">400</span><span class="p">,</span>
+    <span class="n">NF_IP_PRI_RAW</span> <span class="o">=</span> <span class="o">-</span><span class="mi">300</span><span class="p">,</span>
+    <span class="n">NF_IP_PRI_SELINUX_FIRST</span> <span class="o">=</span> <span class="o">-</span><span class="mi">225</span><span class="p">,</span>
+    <span class="n">NF_IP_PRI_CONNTRACK</span> <span class="o">=</span> <span class="o">-</span><span class="mi">200</span><span class="p">,</span>
+    <span class="n">NF_IP_PRI_MANGLE</span> <span class="o">=</span> <span class="o">-</span><span class="mi">150</span><span class="p">,</span>
+    <span class="n">NF_IP_PRI_NAT_DST</span> <span class="o">=</span> <span class="o">-</span><span class="mi">100</span><span class="p">,</span>
+    <span class="n">NF_IP_PRI_FILTER</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="n">NF_IP_PRI_SECURITY</span> <span class="o">=</span> <span class="mi">50</span><span class="p">,</span>
+    <span class="n">NF_IP_PRI_NAT_SRC</span> <span class="o">=</span> <span class="mi">100</span><span class="p">,</span>
+    <span class="n">NF_IP_PRI_SELINUX_LAST</span> <span class="o">=</span> <span class="mi">225</span><span class="p">,</span>
+    <span class="n">NF_IP_PRI_CONNTRACK_HELPER</span> <span class="o">=</span> <span class="mi">300</span><span class="p">,</span>
+    <span class="n">NF_IP_PRI_CONNTRACK_CONFIRM</span> <span class="o">=</span> <span class="n">INT_MAX</span><span class="p">,</span>
+    <span class="n">NF_IP_PRI_LAST</span> <span class="o">=</span> <span class="n">INT_MAX</span><span class="p">,</span>
+<span class="p">};</span>
+</code></pre></div>
+<p><code>NF_IP_PRI_FIRST</code> has the highest priority. <code>NF_IP_PRI_CONNTRACK_DEFRAG</code>, <code>NF_IP_PRI_CONNTRACK</code>, <code>NF_IP_PRI_CONNTRACK_HELPER</code>, <code>NF_IP_PRI_CONNTRACK_CONFIRM</code> are used for connection track system, in which ALG embedded with priority <code>NF_IP_PRI_CONNTRACK_HELPER</code>. priorities from <code>NF_IP_PRI_SELINUX_FIRST</code> to <code>NF_IP_PRI_SELINUX_LAST</code> are used fro netfilter module, in iptables chains, mangle table&rsquo;s priority is <code>NF_IP_PRI_MANGLE</code>, NAT table&rsquo;s priorities are <code>NF_IP_PRI_NAT_DST</code> and <code>NF_IP_PRI_NAT_SRC</code>, and filter table&rsquo;s priority is <code>NF_IP_PRI_FILTER</code>.  </p>
+
+<h3 id="hook-nf_inet_pre_routing">HOOK <code>NF_INET_PRE_ROUTING</code></h3>
+
+<p>There are 6 hook operations registered on this HOOK, <code>ip_sabotage_in</code> with priority <code>NF_IP_PRI_FIRST</code>, <code>iptable_mangle_hook</code> with priority <code>NF_IP_PRI_MANGLE</code>, <code>ipv4_conntrack_defrag</code> with priority <code>NF_IP_PRI_CONNTRACK_DEFRAG</code>, <code>nf_nat_ipv4_in</code> with priority <code>NF_IP_PRI_NAT_DST</code>, <code>iptable_raw_hook</code> with priority <code>NF_IP_PRI_RAW</code>, and <code>ipv4_conntrack_in</code> with priority <code>NF_IP_PRI_CONNTRACK</code>.  </p>
+
+<p><code>ip_sabotage_in</code>: this hook operation actually is registered in bridge stack, when packets are processing at HOOK <code>NF_BR_PRE_ROUTING</code>, it will experience HOOK <code>NF_INET_PRE_ROUTING</code> once, so if packets&rsquo;s destination is local host, it will experience HOOK <code>NF_INET_PRE_ROUTING</code> again when delivered up, this hook operation&rsquo;s existence is help packets skipping this HOOK if they are delivered up from bridge stack, and that is why it has the highest priority.  </p>
+
+<p><code>ipv4_conntrack_defrag</code>: this hook operation is used to handle fragmented packets, they will gather here.  </p>
+
+<p><code>iptable_raw_hook</code>: this hook operation will iterate rules in raw table registered on this HOOK, if it find one match, that rule will be executed, like filter, nat, and mangle, rules on this table, we can configure via command iptables, too, rules on this table have the highest priority in netfilter system as we can check in the priority structure.  </p>
+
+<p><code>ipv4_conntrack_in</code>: this hook operation is the entry point of connection track system, it will create a record for connection if it is the first packet, and it can be tracked, or it will update connection state, or some some protocol specific action like SIP ALG, FTP ALG, etc. Connection is recorded based on network 5 elements: SRC/DST IP address, SRC/DST port, protocol.  </p>
+
+<p><code>iptable_mangle_hook</code>: this hook operation will run all rules in mangle table registered on this HOOK, it is not like NAT, and filter table, which will execute only one rule if find one match, rules in mangle table are packets marking, or TOS setting, which are used to classify packets.  </p>
+
+<p><code>nf_nat_ipv4_in</code>: this hook operation will iterate rules in NAT table registered on this HOOK, if it find one match, that rule will be executed, for one single connection, only the first packet will experience this hook operation, the rest will skip it, that is because once the first packet go through this hook operation, this connection will be track by connection track system, which we can check it via interface <code>/proc/net/nf_conntrack</code> and the hook operations registered by connection track system have higher priority.  </p>
+
+<p>After passing through all hook operations, it will start to route table look-up, the result will determine where this packet goes.  </p>
+
+<h3 id="hook-nf_inet_local_in">HOOK <code>NF_INET_LOCAL_IN</code></h3>
+
+<p>There are 9 hook operations registered on this HOOK, <code>iptable_mangle_hook</code> with priority <code>NF_IP_PRI_MANGLE</code>, <code>nf_nat_ipv4_fn</code> with priority <code>NF_IP_PRI_NAT_SRC</code>, <code>ipv4_helper</code> with priority <code>NF_IP_PRI_CONNTRACK_HELPER</code>, <code>ipv4_confirm</code> with priority <code>NF_IP_PRI_CONNTRACK_CONFIRM</code>, <code>iptable_filter_hook</code> with priority <code>NF_IP_PRI_FILTER</code>, <code>ip_vs_remote_request4</code> with priority <code>NF_IP_PRI_NAT_SRC -1</code>, <code>ip_vs_reply4</code> with priority <code>NF_IP_PRI_NAT_SRC -2</code>, <code>iptable_security_hook</code> with priority <code>NF_IP_PRI_SECURITY</code>, and <code>ipv4_synproxy_hook</code> with priority <code>NF_IP_PRI_CONNTRACK_CONFIRM -1</code>.  </p>
+
+<p><code>iptable_mangle_hook</code>: this hook operation, like I mentioned above, is used to packets marking, rules on this HOOK are packets classify for target local host.  </p>
+
+<p><code>iptable_filter_hook</code>: this hook operation is used for packets filtering, the main purpose for rules on this HOOK are prevent unnecessary packets from injecting into local host.   </p>
+
+<p><code>iptable_security_hook</code>: this hook operation will iterate rules in security table registered on this hook, if it find one match, that rule will be executed, and return. Security table, like mangle, NAT, filter, can configure via iptables, too, its functionality is similar with filter, but mainly for MAC rules.   </p>
+
+<p><code>ip_vs_reply4</code>: this hook operation is registered in module IP virtual server, which route packet not by IP address, but service, the combination of IP address and port. operation registered on this hook is used only for virtual server NAT, check if packet is reply for established from remote host.   </p>
+
+<p><code>ip_vs_remote_request4</code>: this hook operation is registered in module IP virtual server, too, its purpose here is schedule and forward packets from remote client.   </p>
+
+<p><code>nf_nat_ipv4_fn</code>: this hook operation is used for rules on NAT table, it do NAT packets from remote host to local host.   </p>
+
+<p><code>ipv4_helper</code>: this hook operation is used for ALG module, which handle private IP address and public address translation for address information hidden in packet content. It usually used in gateway device, when packets in LAN side have private address information in content, like FTP, SIP, gateway will replace its public address with private address, and it will add an entry in <code>/proc/net/nf_conntrack_expect</code>, so when remote clients want to reach services in LAN side, packets will reach this HOOK at gateway, operation on this hook will accept service request and forward request to LAN host.  </p>
+
+<p><code>ipv4_synproxy_hook</code>: this hook operation is registered in syn proxy module, which used to defense DDOS attack, syn proxy will redirect TCP syn packets from client to local host, operation on this hook is accept request for server, and send reply to clients.  </p>
+
+<p><code>ipv4_confirm</code>: this hook operation is registered in connection track module, it aim to confirm connection establishing for packet starting from local host.   </p>
+
+<p>After packets pass through this HOOK, it will look-up hash table in raw socket hash table, diagram socket hash table, and stream socket hash table, check if there is any connection established, or service match, and it will deliver to socket&rsquo;s RX queue if it finds, or it will be dropped.  </p>
+
+<h3 id="hook-nf_inet_forward">HOOK <code>NF_INET_FORWARD</code></h3>
+
+<p>There are 5 hook operations registered on this HOOK, <code>iptable_mangle_hook</code> with priority <code>NF_IP_PRI_MANGLE</code>, <code>iptable_filter_hook</code> with priority <code>NF_IP_PRI_FILTER</code>, <code>ip_vs_reply4</code> with priority 100, <code>ip_vs_forward_icmp</code> with priority 99, and <code>iptable_security_hook</code> with priority <code>NF_IP_PRI_SECURITY</code>.  </p>
+
+<p><code>iptable_mangle_hook</code>: this hook operation used for rules on mangle table, rules on this HOOK are classify packets from remote host to other host.   </p>
+
+<p><code>iptable_filter_hook</code>： this hook operation used for rules on filter table, rules on this HOOK are related to packets forwarding.   </p>
+
+<p><code>iptable_security_hook</code>: this hook operation used for rules on security table, which rules related to packets forwarding.   </p>
+
+<p><code>ip_vs_forward_icmp</code>: this hook operation is registered in module IP virtual server, in order to catch ICMP related packets destined for 0.0.0.0/0. When fwmark-based virtual service is used, such as transparent cache cluster, TCP packets can be marked and routed to <code>ip_vs_in</code>, but ICMP destined for 0.0.0.0/0 cannot be easily marked and sent to <code>ip_vs_in_icmp</code>. So catch them at this HOOK and send them to <code>ip_vs_in_icmp</code>.   </p>
+
+<p><code>ip_vs_reply4</code>: this hook operation is registered in module IP virtual server, used for virtual server NAT, check if packet is reply for established.   </p>
+
+<p>After pass through this HOOK, packets will be delivered to HOOK <code>NF_INET_POST_ROUTING</code>.   </p>
+
+<h3 id="hook-nf_inet_local_out">HOOK <code>NF_INET_LOCAL_OUT</code></h3>
+
+<p>There are 9 hook operations registered on this HOOK, <code>iptable_mangle_hook</code> with priority <code>NF_IP_PRI_MANGLE</code>, <code>ipv4_conntrack_defrag</code> with priority <code>NF_IP_PRI_CONNTRACK_DEFRAG</code>, <code>nf_nat_ipv4_local_in</code> with priority <code>NF_IP_PRI_NAT_DST</code>, <code>iptable_raw_hook</code>, with priority <code>NF_IP_PRI_RAW</code>, <code>ipv4_conntrack_local</code> with priority <code>NF_IP_PRI_CONNTRACK</code>, <code>iptable_filter_hook</code> with priority <code>NF_IP_PRI_FILTER</code>, <code>ip_vs_local_request4</code> with priority <code>NF_IP_PRI_NAT_DST +2</code>, <code>ip_vs_local_reply4</code> with priority <code>NF_IP_NAT_DST +1</code>, and <code>iptable_security_hook</code> with priority <code>NF_IP_PRI_SECURITY</code>.  </p>
+
+<p><code>ipv4_conntrack_defrag</code>: this hook operation is used for fragment packets, it gather fragments from local client.   </p>
+
+<p><code>iptable_raw_hook</code>: this hook operation is used for rules in raw table, whose priority is higher than any other tables in netfilter module.   </p>
+
+<p><code>ipv4_conntrack_local</code>: this hook operation is registered in connection track module, its operation is track connection from local host.    </p>
+
+<p><code>iptable_mangle_hook</code>: this hook operation is used for rules in mangle table, it classify packets from local host.   </p>
+
+<p><code>nf_nat_ipv4_local_in</code>: this hook operation is used for rules in NAT table, it do NAT for packets from local host.   </p>
+
+<p><code>ip_vs_local_reply4</code>:  this hook operation is registered in module IP virtual server, used for virtual server NAT, check if packet is reply for established from local host.  </p>
+
+<p><code>ip_vs_local_request4</code>: this hook operation is registered in module IP virtual server, used for schedule and forward packet from local clients.   </p>
+
+<p><code>iptable_filter_hook</code>: this hook operation is used for rules in filter table, it filter unnecessary packets generated from local host.   </p>
+
+<p><code>iptable_security_hook</code>: this hook operation is used for rule in security table, it apply MAC rules for packets from local host.   </p>
+
+<p>After packets pass through this HOOK, they will be delivered to HOOK <code>NF_INET_POST_ROUTING</code>.  </p>
+
+<h3 id="hook-nf_inet_post_routing">HOOK <code>NF_INET_POST_ROUTING</code></h3>
+
+<p>There are 5 hook operations registered on this HOOK, <code>iptable_mangle_hook</code> with priority <code>NF_IP_PRI_MANGLE</code>, <code>nf_nat_ipv4_out</code> with priority <code>NF_IP_PRI_NAT_SRC</code>, <code>ipv4_helper</code> with priority <code>NF_IP_PRI_CONNTRACK_HELPER</code>, <code>ipv4_confirm</code> with priority <code>NF_IP_PRI_CONNTRACK_CONFIRM</code>, and <code>ipv4_synproxy_hook</code> with priority <code>NF_IP_PRI_CONNTRACK_CONFIRM -1</code>.  </p>
+
+<p><code>iptable_mangle_hook</code>: this hook operation is used for rules in mangle table, rules for setting TOS value or mark before packet send out.   </p>
+
+<p><code>nf_nat_ipv4_out</code>: this hook operation is used for rules in NAT tables, aim to change source before packets send out.    </p>
+
+<p><code>ipv4_helper</code>: this hook operation used for ALG module, it replace gateway&rsquo;s public address with LAN host&rsquo;s private address in packet content, and add an entry in <code>/proc/net/nf_conntrack_expect</code>, which used for accepting service request from remote client, and service request forwarding.   </p>
+
+<p><code>ipv4_synproxy_hook</code>: this hook operation is registered in syn proxy module, operation here is prevent connection from tracked by connection track module, and when connection established, it redirect this request to real server.   </p>
+
+<p><code>ipv4_confirm</code>: this hook operation is registered in connection track module, it is used to confirm connection establishing.  </p>
+
+<p>After packets pass through this HOOK, they will be delivered down to layer 2.  </p>
+
+<h3 id="how-packets-send-out-?">How packets send out ?</h3>
+
+<p>After pass through all HOOKs in layer 3, if packet size is bigger than MTU, it will be fragmented first, and then check the neighbor information, fill IP header information, deliver packets to <code>dev_queue_xmit</code>.  </p>
+
+<h3 id="conclusion">Conclusion</h3>
+
+<p>This is the basic framework of layer 3, and I don&rsquo;t focus on much details, there are many sub-systems, like route, ALG, connection track, IP virtual server, netfilter, etc, they all designed based on this basic framework, I will talk about them in detail when I get time.  </p>
+
+</article>
+
+
+  <div class="share-page">
+  Share this post!
+
+  <div class="share-links">
+    
+      <a class = "fa fa-facebook" href="https://facebook.com/sharer.php?u=http://helloweishi.github.io/network/stack/2015/06/27/L3-IP-stack/" rel="nofollow" target="_blank" title="Share on Facebook"></a>
+    
+
+    
+      <a class="fa fa-twitter" href="https://twitter.com/intent/tweet?text=Layer 3 IP Stack&url=http://helloweishi.github.io/network/stack/2015/06/27/L3-IP-stack/" rel="nofollow" target="_blank" title="Share on Twitter"></a>
+    
+
+    
+      <a class="fa fa-google-plus" href="https://plus.google.com/share?url=http://helloweishi.github.io/network/stack/2015/06/27/L3-IP-stack/" rel="nofollow" target="_blank" title="Share on Google+"></a>
+    
+
+    
+      <a class="fa fa-linkedin" href="http://www.linkedin.com/shareArticle?url=http://helloweishi.github.io/network/stack/2015/06/27/L3-IP-stack/&title=Layer 3 IP Stack" rel="nofollow" target="_blank" title="Share on LinkedIn"></a>
+    
+
+    
+      <a class="fa fa-digg" href="http://digg.com/submit?url=http://helloweishi.github.io/network/stack/2015/06/27/L3-IP-stack/&title=Layer 3 IP Stack" rel="nofollow" target="_blank" title="Share on Digg"></a>
+    
+
+    
+      <a class="fa fa-tumblr" href="http://www.tumblr.com/share/link?url=http://helloweishi.github.io/network/stack/2015/06/27/L3-IP-stack/&name=Layer 3 IP Stack" rel="nofollow" target="_blank" title="Share on Tumblr"></a>
+    
+
+    
+      <a class="fa fa-reddit" href="http://reddit.com/submit?url=http://helloweishi.github.io/network/stack/2015/06/27/L3-IP-stack/&title=Layer 3 IP Stack" rel="nofollow" target="_blank" title="Share on Reddit"></a>
+    
+
+    
+      <a class="fa fa-stumbleupon" href="http://www.stumbleupon.com/submit?url=http://helloweishi.github.io/network/stack/2015/06/27/L3-IP-stack/&title=Layer 3 IP Stack" rel="nofollow" target="_blank" title="Share on StumbleUpon"></a>
+    
+  </div>
+</div>
+
+
+
+
+  <div class="py2 post-footer">
+  <img src="/images/me.jpeg" alt="Wei" class="avatar" />
+  <p>
+    Welcome to Wei's space.
+  </p>
+  <p>
+    Follow me on <a href="https://twitter.com/weishigoname">Twitter</a>.
+  </p>
+</div>
+
+
+
+
+  <div id="disqus_thread"></div>
+  <script type="text/javascript">
+    var disqus_shortname  = 'weishigoname';
+    var disqus_identifier = '/network/stack/2015/06/27/L3-IP-stack';
+
+    (function() {
+      var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+      dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+      (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+    })();
+  </script>
+  <noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+
+
+
+  <h3 class="related-post-title">Related Posts</h3>
+  
+    <div class="post ml2">
+      <a href="/network/stack/2015/06/27/L2-bridge-stack/" class="post-link">
+        <h4 class="post-title">Layer 2 Bridge Stack</h4>
+        <p class="post-summary">bridge in Layer 2 play important role, in this post, I will talk about bridge architecture in Linux kernel, and details in implementation.</p>
+      </a>
+    </div>
+  
+    <div class="post ml2">
+      <a href="/network/stack/2015/05/18/Linux-kernel-network-framework/" class="post-link">
+        <h4 class="post-title">Linux Kernel Network Framework</h4>
+        <p class="post-summary">Linux kernel network stack is the most interesting part I ever dig, in this series, I like to introduce you the whole framework of network stack in Linux kernel, in this post, I show you the stack architecture, and later, I will dig it bottom up, layer by layer.</p>
+      </a>
+    </div>
+  
+    <div class="post ml2">
+      <a href="/network/firewall/2015/04/25/defense-RST-attack-from-firewall/" class="post-link">
+        <h4 class="post-title">Defense RST attack from firewall</h4>
+        <p class="post-summary">In keywords filtering system. firewall will fire RST, which make connection broken, if there are some sensitive information found, this article I introduce how can we defense this attack at Linux.</p>
+      </a>
+    </div>
+  
+    <div class="post ml2">
+      <a href="/network/firewall/2015/04/22/visit-twitter-without-vpn/" class="post-link">
+        <h4 class="post-title">Visit twitter inside firewall without VPN</h4>
+        <p class="post-summary">Twitter is similar with youtube, they both are blocked by firewall via similar filter mechanism, based on the analysis in previous article, I will introduce some ways to visit twitter.</p>
+      </a>
+    </div>
+  
+    <div class="post ml2">
+      <a href="/network/firewall/2015/04/03/access-youtube-without-vpn/" class="post-link">
+        <h4 class="post-title">Visit youtube inside firewall without VPN</h4>
+        <p class="post-summary">This article analysis how firewall system block youtube accessing, and how we can break through.</p>
+      </a>
+    </div>
+  
+    <div class="post ml2">
+      <a href="/network/firewall/2015/03/02/access-google-without-vpn/" class="post-link">
+        <h4 class="post-title">Visit Google inside firewall without VPN</h4>
+        <p class="post-summary">This article introduce how firewall system block google site accessing, and how we can break its access limits.</p>
+      </a>
+    </div>
+  
+
+
+      </div>
+    </div>
+  </div>
+
+  <footer class="footer">
+  <div class="p2 wrap">
+    <div class="measure mt1 center">
+      <small>
+        <br>
+ 
+      </small>
+    </div>
+  </div>
+</footer>
+
+
+
+</body>
+</html>

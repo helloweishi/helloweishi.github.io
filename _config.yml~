@@ -10,9 +10,9 @@ url:         "http://helloweishi.github.io"
 google_analytics:
 
 # Optional features
-animated:           false
-show_related_posts: false
-show_post_footers:  false
+animated:           true
+show_related_posts: true
+show_post_footers:  true
 
 # Disqus post comments
 # (leave blank to disable Disqus)
@@ -33,7 +33,7 @@ flattr_button:
 show_sharing_icons: true
 share_text: 'Share this post!'
 # Change to 'true' to enable individual icons
-share_facebook: false
+share_facebook: true
 share_twitter: true
 share_googleplus: true
 share_linkedin: true

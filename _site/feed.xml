@@ -7,6 +7,181 @@
     <atom:link href="http://helloweishi.github.io/feed.xml" rel="self" type="application/rss+xml" />
     
       <item>
+        <title>Layer 3 IP Stack</title>
+        <description>&lt;p&gt;Layer 3, as we all know, play the most important role in network, it is the main layer which route packets between routers and routers until it reach target host, and which network security apply on.&lt;br&gt;
+In this post, I will focus on the basic framework of layer 3, and there are some sub-layers wealth us to dig, too, like &lt;code&gt;nf_conntrack&lt;/code&gt;, route, ALG, netfilter, and etc, which designed based on the basic framework, and I will introduce them in later posts.  &lt;/p&gt;
+
+&lt;h3 id=&quot;how-packets-receving-in-layer-3-?&quot;&gt;How packets receving in layer 3 ?&lt;/h3&gt;
+
+&lt;p&gt;In last post, I mentioned linked list &lt;code&gt;ptype_base&lt;/code&gt;, it is layers 3 protocol hook list, protocol hook registered on this list is iterated in API &lt;code&gt;netif_receive_skb&lt;/code&gt;, hook function will be called if protocol find on this list.  &lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-c&quot; data-lang=&quot;c&quot;&gt;&lt;span class=&quot;k&quot;&gt;static&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;packet_type&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ip_packet_type&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;__read_mostly&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;type&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;cpu_to_be16&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;ETH_P_IP&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;),&lt;/span&gt;
+    &lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;func&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ip_rcv&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;};&lt;/span&gt;
+
+&lt;span class=&quot;k&quot;&gt;static&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;__init&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;inet_init&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;p&quot;&gt;...&lt;/span&gt;
+
+    &lt;span class=&quot;n&quot;&gt;dev_add_pack&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;ip_packet_type&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+
+    &lt;span class=&quot;p&quot;&gt;...&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;The code segment shows above is defined in file &lt;code&gt;net/ipv4/af_inet.c&lt;/code&gt;, it is the IPV4 protocol hook with hook function &lt;code&gt;ip_rcv&lt;/code&gt;, which defined in file  &lt;code&gt;net/ipv4/ip_input.c&lt;/code&gt;.&lt;br&gt;
+For IPV6, it is similar:  &lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-c&quot; data-lang=&quot;c&quot;&gt;&lt;span class=&quot;k&quot;&gt;static&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;packet_type&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ipv6_packet_type&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;__read_mostly&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;type&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;cpu_to_be16&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;ETH_P_IPV6&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;),&lt;/span&gt;
+    &lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;func&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ipv6_rcv&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;};&lt;/span&gt;
+
+&lt;span class=&quot;k&quot;&gt;static&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;__init&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;ipv6_packet_init&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;dev_add_pack&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;ipv6_packet_type&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;In hook function, it will do some packet header validation, and then packets will be sent to HOOK &lt;code&gt;NF_INET_PRE_ROUTING&lt;/code&gt;.  &lt;/p&gt;
+
+&lt;h3 id=&quot;layer-3-framework&quot;&gt;Layer 3 framework&lt;/h3&gt;
+
+&lt;p&gt;&lt;img src=&quot;/images/IP_STACK.png&quot; alt=&quot;IP stack&quot;&gt;
+&lt;center&gt;&lt;small&gt;Figure 1: IP Stack framework&lt;/small&gt;&lt;/center&gt;  &lt;/p&gt;
+
+&lt;p&gt;Like layer 2, Layer 3 framework also consists of 5 HOOKs, but they all design based on header information above layer 3, like IP header, TCP header, UDP header. HOOK &lt;code&gt;NF_INET_PRE_ROUTING&lt;/code&gt; is the entry point, what it does here are SNAT, classification, more importantly, connection track, after going through, the next thing to do is route table look-up, which determines where packets should route to, the first option is route to local host, packets is delivered up after HOOK &lt;code&gt;NF_INET_LOCAL_IN&lt;/code&gt;, which will handle the packets filter, the another option is route to other host, in this routine, packets need to go through HOOK &lt;code&gt;NF_INET_FORWARD&lt;/code&gt; for packet filtering, first. The another entry point of layer 3 stack is HOOK &lt;code&gt;NF_INET_LOCAL_OUT&lt;/code&gt;, which used for self-generated packets. For packet sent from local host, route table look-up actually happens at layer 4 before packet delivering down, so when packets reach HOOK &lt;code&gt;NF_INET_LOCAL_OUT&lt;/code&gt;, it already know where it should route to, so at this HOOK, it will do packet filtering, before packets deliver down, the last HOOK is &lt;code&gt;NF_INET_POST_ROUTING&lt;/code&gt;, at this HOOK, it will do DNAT, classification, and connection track.  &lt;/p&gt;
+
+&lt;p&gt;Before digging into each HOOK, let&amp;rsquo;s have a look at hook operation priority structure, which defines in file &lt;code&gt;include/uapi/linux/netfiler_ipv4.h&lt;/code&gt;:  &lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-c&quot; data-lang=&quot;c&quot;&gt;&lt;span class=&quot;k&quot;&gt;enum&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;nf_ip_hook_priorities&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;NF_IP_PRI_FIRST&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;INT_MIN&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;NF_IP_PRI_CONNTRACK_DEFRAG&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;400&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;NF_IP_PRI_RAW&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;300&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;NF_IP_PRI_SELINUX_FIRST&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;225&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;NF_IP_PRI_CONNTRACK&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;200&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;NF_IP_PRI_MANGLE&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;150&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;NF_IP_PRI_NAT_DST&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;100&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;NF_IP_PRI_FILTER&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;NF_IP_PRI_SECURITY&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;50&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;NF_IP_PRI_NAT_SRC&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;100&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;NF_IP_PRI_SELINUX_LAST&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;225&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;NF_IP_PRI_CONNTRACK_HELPER&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;300&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;NF_IP_PRI_CONNTRACK_CONFIRM&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;INT_MAX&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;NF_IP_PRI_LAST&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;INT_MAX&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;};&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;&lt;code&gt;NF_IP_PRI_FIRST&lt;/code&gt; has the highest priority. &lt;code&gt;NF_IP_PRI_CONNTRACK_DEFRAG&lt;/code&gt;, &lt;code&gt;NF_IP_PRI_CONNTRACK&lt;/code&gt;, &lt;code&gt;NF_IP_PRI_CONNTRACK_HELPER&lt;/code&gt;, &lt;code&gt;NF_IP_PRI_CONNTRACK_CONFIRM&lt;/code&gt; are used for connection track system, in which ALG embedded with priority &lt;code&gt;NF_IP_PRI_CONNTRACK_HELPER&lt;/code&gt;. priorities from &lt;code&gt;NF_IP_PRI_SELINUX_FIRST&lt;/code&gt; to &lt;code&gt;NF_IP_PRI_SELINUX_LAST&lt;/code&gt; are used fro netfilter module, in iptables chains, mangle table&amp;rsquo;s priority is &lt;code&gt;NF_IP_PRI_MANGLE&lt;/code&gt;, NAT table&amp;rsquo;s priorities are &lt;code&gt;NF_IP_PRI_NAT_DST&lt;/code&gt; and &lt;code&gt;NF_IP_PRI_NAT_SRC&lt;/code&gt;, and filter table&amp;rsquo;s priority is &lt;code&gt;NF_IP_PRI_FILTER&lt;/code&gt;.  &lt;/p&gt;
+
+&lt;h3 id=&quot;hook-nf_inet_pre_routing&quot;&gt;HOOK &lt;code&gt;NF_INET_PRE_ROUTING&lt;/code&gt;&lt;/h3&gt;
+
+&lt;p&gt;There are 6 hook operations registered on this HOOK, &lt;code&gt;ip_sabotage_in&lt;/code&gt; with priority &lt;code&gt;NF_IP_PRI_FIRST&lt;/code&gt;, &lt;code&gt;iptable_mangle_hook&lt;/code&gt; with priority &lt;code&gt;NF_IP_PRI_MANGLE&lt;/code&gt;, &lt;code&gt;ipv4_conntrack_defrag&lt;/code&gt; with priority &lt;code&gt;NF_IP_PRI_CONNTRACK_DEFRAG&lt;/code&gt;, &lt;code&gt;nf_nat_ipv4_in&lt;/code&gt; with priority &lt;code&gt;NF_IP_PRI_NAT_DST&lt;/code&gt;, &lt;code&gt;iptable_raw_hook&lt;/code&gt; with priority &lt;code&gt;NF_IP_PRI_RAW&lt;/code&gt;, and &lt;code&gt;ipv4_conntrack_in&lt;/code&gt; with priority &lt;code&gt;NF_IP_PRI_CONNTRACK&lt;/code&gt;.  &lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;ip_sabotage_in&lt;/code&gt;: this hook operation actually is registered in bridge stack, when packets are processing at HOOK &lt;code&gt;NF_BR_PRE_ROUTING&lt;/code&gt;, it will experience HOOK &lt;code&gt;NF_INET_PRE_ROUTING&lt;/code&gt; once, so if packets&amp;rsquo;s destination is local host, it will experience HOOK &lt;code&gt;NF_INET_PRE_ROUTING&lt;/code&gt; again when delivered up, this hook operation&amp;rsquo;s existence is help packets skipping this HOOK if they are delivered up from bridge stack, and that is why it has the highest priority.  &lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;ipv4_conntrack_defrag&lt;/code&gt;: this hook operation is used to handle fragmented packets, they will gather here.  &lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;iptable_raw_hook&lt;/code&gt;: this hook operation will iterate rules in raw table registered on this HOOK, if it find one match, that rule will be executed, like filter, nat, and mangle, rules on this table, we can configure via command iptables, too, rules on this table have the highest priority in netfilter system as we can check in the priority structure.  &lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;ipv4_conntrack_in&lt;/code&gt;: this hook operation is the entry point of connection track system, it will create a record for connection if it is the first packet, and it can be tracked, or it will update connection state, or some some protocol specific action like SIP ALG, FTP ALG, etc. Connection is recorded based on network 5 elements: SRC/DST IP address, SRC/DST port, protocol.  &lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;iptable_mangle_hook&lt;/code&gt;: this hook operation will run all rules in mangle table registered on this HOOK, it is not like NAT, and filter table, which will execute only one rule if find one match, rules in mangle table are packets marking, or TOS setting, which are used to classify packets.  &lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;nf_nat_ipv4_in&lt;/code&gt;: this hook operation will iterate rules in NAT table registered on this HOOK, if it find one match, that rule will be executed, for one single connection, only the first packet will experience this hook operation, the rest will skip it, that is because once the first packet go through this hook operation, this connection will be track by connection track system, which we can check it via interface &lt;code&gt;/proc/net/nf_conntrack&lt;/code&gt; and the hook operations registered by connection track system have higher priority.  &lt;/p&gt;
+
+&lt;p&gt;After passing through all hook operations, it will start to route table look-up, the result will determine where this packet goes.  &lt;/p&gt;
+
+&lt;h3 id=&quot;hook-nf_inet_local_in&quot;&gt;HOOK &lt;code&gt;NF_INET_LOCAL_IN&lt;/code&gt;&lt;/h3&gt;
+
+&lt;p&gt;There are 9 hook operations registered on this HOOK, &lt;code&gt;iptable_mangle_hook&lt;/code&gt; with priority &lt;code&gt;NF_IP_PRI_MANGLE&lt;/code&gt;, &lt;code&gt;nf_nat_ipv4_fn&lt;/code&gt; with priority &lt;code&gt;NF_IP_PRI_NAT_SRC&lt;/code&gt;, &lt;code&gt;ipv4_helper&lt;/code&gt; with priority &lt;code&gt;NF_IP_PRI_CONNTRACK_HELPER&lt;/code&gt;, &lt;code&gt;ipv4_confirm&lt;/code&gt; with priority &lt;code&gt;NF_IP_PRI_CONNTRACK_CONFIRM&lt;/code&gt;, &lt;code&gt;iptable_filter_hook&lt;/code&gt; with priority &lt;code&gt;NF_IP_PRI_FILTER&lt;/code&gt;, &lt;code&gt;ip_vs_remote_request4&lt;/code&gt; with priority &lt;code&gt;NF_IP_PRI_NAT_SRC -1&lt;/code&gt;, &lt;code&gt;ip_vs_reply4&lt;/code&gt; with priority &lt;code&gt;NF_IP_PRI_NAT_SRC -2&lt;/code&gt;, &lt;code&gt;iptable_security_hook&lt;/code&gt; with priority &lt;code&gt;NF_IP_PRI_SECURITY&lt;/code&gt;, and &lt;code&gt;ipv4_synproxy_hook&lt;/code&gt; with priority &lt;code&gt;NF_IP_PRI_CONNTRACK_CONFIRM -1&lt;/code&gt;.  &lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;iptable_mangle_hook&lt;/code&gt;: this hook operation, like I mentioned above, is used to packets marking, rules on this HOOK are packets classify for target local host.  &lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;iptable_filter_hook&lt;/code&gt;: this hook operation is used for packets filtering, the main purpose for rules on this HOOK are prevent unnecessary packets from injecting into local host.   &lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;iptable_security_hook&lt;/code&gt;: this hook operation will iterate rules in security table registered on this hook, if it find one match, that rule will be executed, and return. Security table, like mangle, NAT, filter, can configure via iptables, too, its functionality is similar with filter, but mainly for MAC rules.   &lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;ip_vs_reply4&lt;/code&gt;: this hook operation is registered in module IP virtual server, which route packet not by IP address, but service, the combination of IP address and port. operation registered on this hook is used only for virtual server NAT, check if packet is reply for established from remote host.   &lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;ip_vs_remote_request4&lt;/code&gt;: this hook operation is registered in module IP virtual server, too, its purpose here is schedule and forward packets from remote client.   &lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;nf_nat_ipv4_fn&lt;/code&gt;: this hook operation is used for rules on NAT table, it do NAT packets from remote host to local host.   &lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;ipv4_helper&lt;/code&gt;: this hook operation is used for ALG module, which handle private IP address and public address translation for address information hidden in packet content. It usually used in gateway device, when packets in LAN side have private address information in content, like FTP, SIP, gateway will replace its public address with private address, and it will add an entry in &lt;code&gt;/proc/net/nf_conntrack_expect&lt;/code&gt;, so when remote clients want to reach services in LAN side, packets will reach this HOOK at gateway, operation on this hook will accept service request and forward request to LAN host.  &lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;ipv4_synproxy_hook&lt;/code&gt;: this hook operation is registered in syn proxy module, which used to defense DDOS attack, syn proxy will redirect TCP syn packets from client to local host, operation on this hook is accept request for server, and send reply to clients.  &lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;ipv4_confirm&lt;/code&gt;: this hook operation is registered in connection track module, it aim to confirm connection establishing for packet starting from local host.   &lt;/p&gt;
+
+&lt;p&gt;After packets pass through this HOOK, it will look-up hash table in raw socket hash table, diagram socket hash table, and stream socket hash table, check if there is any connection established, or service match, and it will deliver to socket&amp;rsquo;s RX queue if it finds, or it will be dropped.  &lt;/p&gt;
+
+&lt;h3 id=&quot;hook-nf_inet_forward&quot;&gt;HOOK &lt;code&gt;NF_INET_FORWARD&lt;/code&gt;&lt;/h3&gt;
+
+&lt;p&gt;There are 5 hook operations registered on this HOOK, &lt;code&gt;iptable_mangle_hook&lt;/code&gt; with priority &lt;code&gt;NF_IP_PRI_MANGLE&lt;/code&gt;, &lt;code&gt;iptable_filter_hook&lt;/code&gt; with priority &lt;code&gt;NF_IP_PRI_FILTER&lt;/code&gt;, &lt;code&gt;ip_vs_reply4&lt;/code&gt; with priority 100, &lt;code&gt;ip_vs_forward_icmp&lt;/code&gt; with priority 99, and &lt;code&gt;iptable_security_hook&lt;/code&gt; with priority &lt;code&gt;NF_IP_PRI_SECURITY&lt;/code&gt;.  &lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;iptable_mangle_hook&lt;/code&gt;: this hook operation used for rules on mangle table, rules on this HOOK are classify packets from remote host to other host.   &lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;iptable_filter_hook&lt;/code&gt;： this hook operation used for rules on filter table, rules on this HOOK are related to packets forwarding.   &lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;iptable_security_hook&lt;/code&gt;: this hook operation used for rules on security table, which rules related to packets forwarding.   &lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;ip_vs_forward_icmp&lt;/code&gt;: this hook operation is registered in module IP virtual server, in order to catch ICMP related packets destined for 0.0.0.0/0. When fwmark-based virtual service is used, such as transparent cache cluster, TCP packets can be marked and routed to &lt;code&gt;ip_vs_in&lt;/code&gt;, but ICMP destined for 0.0.0.0/0 cannot be easily marked and sent to &lt;code&gt;ip_vs_in_icmp&lt;/code&gt;. So catch them at this HOOK and send them to &lt;code&gt;ip_vs_in_icmp&lt;/code&gt;.   &lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;ip_vs_reply4&lt;/code&gt;: this hook operation is registered in module IP virtual server, used for virtual server NAT, check if packet is reply for established.   &lt;/p&gt;
+
+&lt;p&gt;After pass through this HOOK, packets will be delivered to HOOK &lt;code&gt;NF_INET_POST_ROUTING&lt;/code&gt;.   &lt;/p&gt;
+
+&lt;h3 id=&quot;hook-nf_inet_local_out&quot;&gt;HOOK &lt;code&gt;NF_INET_LOCAL_OUT&lt;/code&gt;&lt;/h3&gt;
+
+&lt;p&gt;There are 9 hook operations registered on this HOOK, &lt;code&gt;iptable_mangle_hook&lt;/code&gt; with priority &lt;code&gt;NF_IP_PRI_MANGLE&lt;/code&gt;, &lt;code&gt;ipv4_conntrack_defrag&lt;/code&gt; with priority &lt;code&gt;NF_IP_PRI_CONNTRACK_DEFRAG&lt;/code&gt;, &lt;code&gt;nf_nat_ipv4_local_in&lt;/code&gt; with priority &lt;code&gt;NF_IP_PRI_NAT_DST&lt;/code&gt;, &lt;code&gt;iptable_raw_hook&lt;/code&gt;, with priority &lt;code&gt;NF_IP_PRI_RAW&lt;/code&gt;, &lt;code&gt;ipv4_conntrack_local&lt;/code&gt; with priority &lt;code&gt;NF_IP_PRI_CONNTRACK&lt;/code&gt;, &lt;code&gt;iptable_filter_hook&lt;/code&gt; with priority &lt;code&gt;NF_IP_PRI_FILTER&lt;/code&gt;, &lt;code&gt;ip_vs_local_request4&lt;/code&gt; with priority &lt;code&gt;NF_IP_PRI_NAT_DST +2&lt;/code&gt;, &lt;code&gt;ip_vs_local_reply4&lt;/code&gt; with priority &lt;code&gt;NF_IP_NAT_DST +1&lt;/code&gt;, and &lt;code&gt;iptable_security_hook&lt;/code&gt; with priority &lt;code&gt;NF_IP_PRI_SECURITY&lt;/code&gt;.  &lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;ipv4_conntrack_defrag&lt;/code&gt;: this hook operation is used for fragment packets, it gather fragments from local client.   &lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;iptable_raw_hook&lt;/code&gt;: this hook operation is used for rules in raw table, whose priority is higher than any other tables in netfilter module.   &lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;ipv4_conntrack_local&lt;/code&gt;: this hook operation is registered in connection track module, its operation is track connection from local host.    &lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;iptable_mangle_hook&lt;/code&gt;: this hook operation is used for rules in mangle table, it classify packets from local host.   &lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;nf_nat_ipv4_local_in&lt;/code&gt;: this hook operation is used for rules in NAT table, it do NAT for packets from local host.   &lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;ip_vs_local_reply4&lt;/code&gt;:  this hook operation is registered in module IP virtual server, used for virtual server NAT, check if packet is reply for established from local host.  &lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;ip_vs_local_request4&lt;/code&gt;: this hook operation is registered in module IP virtual server, used for schedule and forward packet from local clients.   &lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;iptable_filter_hook&lt;/code&gt;: this hook operation is used for rules in filter table, it filter unnecessary packets generated from local host.   &lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;iptable_security_hook&lt;/code&gt;: this hook operation is used for rule in security table, it apply MAC rules for packets from local host.   &lt;/p&gt;
+
+&lt;p&gt;After packets pass through this HOOK, they will be delivered to HOOK &lt;code&gt;NF_INET_POST_ROUTING&lt;/code&gt;.  &lt;/p&gt;
+
+&lt;h3 id=&quot;hook-nf_inet_post_routing&quot;&gt;HOOK &lt;code&gt;NF_INET_POST_ROUTING&lt;/code&gt;&lt;/h3&gt;
+
+&lt;p&gt;There are 5 hook operations registered on this HOOK, &lt;code&gt;iptable_mangle_hook&lt;/code&gt; with priority &lt;code&gt;NF_IP_PRI_MANGLE&lt;/code&gt;, &lt;code&gt;nf_nat_ipv4_out&lt;/code&gt; with priority &lt;code&gt;NF_IP_PRI_NAT_SRC&lt;/code&gt;, &lt;code&gt;ipv4_helper&lt;/code&gt; with priority &lt;code&gt;NF_IP_PRI_CONNTRACK_HELPER&lt;/code&gt;, &lt;code&gt;ipv4_confirm&lt;/code&gt; with priority &lt;code&gt;NF_IP_PRI_CONNTRACK_CONFIRM&lt;/code&gt;, and &lt;code&gt;ipv4_synproxy_hook&lt;/code&gt; with priority &lt;code&gt;NF_IP_PRI_CONNTRACK_CONFIRM -1&lt;/code&gt;.  &lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;iptable_mangle_hook&lt;/code&gt;: this hook operation is used for rules in mangle table, rules for setting TOS value or mark before packet send out.   &lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;nf_nat_ipv4_out&lt;/code&gt;: this hook operation is used for rules in NAT tables, aim to change source before packets send out.    &lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;ipv4_helper&lt;/code&gt;: this hook operation used for ALG module, it replace gateway&amp;rsquo;s public address with LAN host&amp;rsquo;s private address in packet content, and add an entry in &lt;code&gt;/proc/net/nf_conntrack_expect&lt;/code&gt;, which used for accepting service request from remote client, and service request forwarding.   &lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;ipv4_synproxy_hook&lt;/code&gt;: this hook operation is registered in syn proxy module, operation here is prevent connection from tracked by connection track module, and when connection established, it redirect this request to real server.   &lt;/p&gt;
+
+&lt;p&gt;&lt;code&gt;ipv4_confirm&lt;/code&gt;: this hook operation is registered in connection track module, it is used to confirm connection establishing.  &lt;/p&gt;
+
+&lt;p&gt;After packets pass through this HOOK, they will be delivered down to layer 2.  &lt;/p&gt;
+
+&lt;h3 id=&quot;how-packets-send-out-?&quot;&gt;How packets send out ?&lt;/h3&gt;
+
+&lt;p&gt;After pass through all HOOKs in layer 3, if packet size is bigger than MTU, it will be fragmented first, and then check the neighbor information, fill IP header information, deliver packets to &lt;code&gt;dev_queue_xmit&lt;/code&gt;.  &lt;/p&gt;
+
+&lt;h3 id=&quot;conclusion&quot;&gt;Conclusion&lt;/h3&gt;
+
+&lt;p&gt;This is the basic framework of layer 3, and I don&amp;rsquo;t focus on much details, there are many sub-systems, like route, ALG, connection track, IP virtual server, netfilter, etc, they all designed based on this basic framework, I will talk about them in detail when I get time.  &lt;/p&gt;
+</description>
+        <pubDate>Sat, 27 Jun 2015 20:33:00 +0800</pubDate>
+        <link>http://helloweishi.github.io/network/stack/2015/06/27/L3-IP-stack/</link>
+        <guid isPermaLink="true">http://helloweishi.github.io/network/stack/2015/06/27/L3-IP-stack/</guid>
+      </item>
+    
+      <item>
         <title>Layer 2 Bridge Stack</title>
         <description>&lt;p&gt;In this post, I will talk about L2 architecture in Linux kernel network stack, focus on data flow, how packets receiving in, and route out. About network topology maintaining, like STP, I won&amp;rsquo;t talk here.  &lt;/p&gt;
 
