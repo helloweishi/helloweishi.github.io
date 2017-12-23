@@ -14,7 +14,7 @@ With new network booming background, For sure, IPv4 can't full-filled our requir
 New rules, New concepts should stand out. IPv6 have a huge address space, and still with address saving property built-in, it will come on stage. Edge Computing, deploy service clouds at network access layer, closer to end user, which can fix latency issue, what's more, bandwidth at back-bone network saved, it is a attractive solution for enterprises, and gain more and more popular in recent years. In the rest of this post, I will talk some design about edge computing, and how it will deploy in IPv6 network.  
 
 
-###IPv6 introduction  
+### IPv6 introduction  
 
 ![IPv6 address](/images/ipv6_address.png)
 <center><small>Figure 1: IPv6 address</small></center>  
@@ -28,7 +28,7 @@ There are several address saving properties in IPv6:
 Instead of ARP, IPv6 use ICMP to request MAC address, and multicast is used instead of broadcast in IPv4, and multicast has scope bit defined which limit how far packets can reach.  
 
 
-###Edge Computing  
+### Edge Computing  
 
 when we surf internet, the key facts effect our experience are bandwidth, network speed, and latency, ISPs can enhance network infrastructure to add more bandwidth, and network speed, but the distance between enterprise services and users is still there, so latency can't become less efficiently, how can we improve it? move enterprise services closer to users, that is where edge computing come from.  
 
@@ -57,7 +57,7 @@ In IPv6's multicast address, you may notice it have some extension bit, like sco
 
 Beside static contents, there are some local specific behind each edge cloud, which users share locally, so something like unicast is needed, I think implement it based on multicast framework is not difficult, we can add subscribe to local specific contents, like one TV channel, only one is watching.  
 
-###Security  
+### Security  
 
 ANYCAST as interface to user, enterprise cloud is totally hidden from user, and there is no way for user to reach enterprise cloud directly, the only way is through edge cloud, so enterprise servers' security is better enhanced. If there are attacks exist, edge cloud is located at access layer, damages will be minimized, it won't widely effect the whole network like today.  
 Multicast as a way for data sync between edge cloud and enterprise cloud, which isolated from unicast network, and multicast have scope, which ensure data in channel won't leak behind access layer, hackers can't sneak anything just stay at home.  
@@ -65,7 +65,7 @@ In IPv6 network, what I heard but not confirmed, it will start to use private ro
 And the next thing is NAT, many people believe it is more secure to hide behind NAT, but it is not whole true. Many network performance issues are because of NAT, especially for gateway, it need to translate between public address and private address packet by packet, and do many modification to packets for hosts behind, that burden will limit its throughput, and be very easy to choose as attack point, and for hosts, it definitely need to access internet, that means they still stay online, it is not real safety. In IPv6 network, every host has global unicast address, which does not mean it is less safe that NAT, if host does not have port opening, outside network could not be reached, and gateway can still do many thing for hosts, like forward packets to hosts want only, hosts can just subscribe what they want from gateway, all the other gateway will filter out for hosts, it is the same security level to NAT, but no packets modification, no address translation, and better performance. So in IPv6 network, network security is not a issue, but better, just every host have global unicast address, which is very easy to expose users' ID, it is better for government to do surveillance, though.  
 
 
-###Conclusion  
+### Conclusion  
 
 Edge computing open a new door for market which require extreme low-latency reaction, like the coming self-driving car, VR, and etc.  
 It is the future where everywhere on internet is cloud, the current centralized services deployment will destined to be replaced by decentralized cloud, which is faster, real-time, and better.
