@@ -43,10 +43,18 @@ share_reddit: true
 share_stumbleupon: true
 
 # Build settings
-markdown:     redcarpet
-redcarpet:
-  extensions: ['smart', 'tables', 'with_toc_data']
+markdown:     kramdown
+kramdown:
+  input: GFM
+  extensions:
+    - autolink
+    - footnotes
+    - smart
+  enable_coderay: true
+  syntax_highlighter: rouge
+  coderay:
+    coderay_line_number: nil
 permalink:    pretty
-paginate:     10
+jekyll-paginate:     10
 sass:
   compressed: true
